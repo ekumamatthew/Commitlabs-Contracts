@@ -28,8 +28,11 @@ fn create_test_metadata(e: &Env, asset_address: &Address) -> (String, u32, u32, 
 // Initialization Tests
 // ============================================
 
-#[test]
-fn test_initialize() {
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+fn setup_env() -> (Env, Address, Address) {
     let e = Env::default();
     let (admin, client) = setup_contract(&e);
 
@@ -43,6 +46,10 @@ fn test_initialize() {
     // Verify total supply is 0
     assert_eq!(client.total_supply(), 0);
 }
+
+// ============================================================================
+// Initialization Tests
+// ============================================================================
 
 #[test]
 #[should_panic(expected = "Error(Contract, #2)")] // AlreadyInitialized
@@ -512,6 +519,21 @@ fn test_get_nfts_by_owner() {
 // ============================================
 // Transfer Tests
 // ============================================
+
+#[test]
+fn test_owner_of_not_found() {
+    let (e, contract_id, admin) = setup_env();
+    let client = CommitmentNFTContractClient::new(&e, &contract_id);
+
+    client.initialize(&admin);
+
+    let result = client.try_owner_of(&999);
+    assert!(result.is_err());
+}
+
+// ============================================================================
+// Transfer Tests
+// ============================================================================
 
 #[test]
 fn test_transfer() {
