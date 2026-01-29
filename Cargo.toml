@@ -5,6 +5,7 @@ members = [
     "contracts/commitment_core",
     "contracts/attestation_engine",
     "contracts/allocation_logic",
+    "contracts/commitment_interface",
 ]
 # Note: tests/integration is excluded from workspace to prevent testutils feature
 # from being enabled during WASM builds. Run integration tests separately.
