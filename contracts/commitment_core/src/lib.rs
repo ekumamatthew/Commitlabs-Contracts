@@ -4,7 +4,7 @@ use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, log, token, symbol_short, Address, Env, IntoVal, String,
     Symbol, Vec,
 };
-use shared_utils::{SafeMath, TimeUtils, Validation, RateLimiter, emit_error_event};
+use shared_utils::{SafeMath, TimeUtils, Validation, RateLimiter, emit_error_event, Pausable};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -194,6 +194,41 @@ fn require_admin(e: &Env, caller: &Address) {
     }
 }
 
+/// Pause the contract
+    /// 
+    /// # Arguments
+    /// * `e` - The environment
+    /// 
+    /// # Panics
+    /// Panics if caller is not admin or if contract is already paused
+    pub fn pause(e: Env) {
+        require_admin(&e, &e.caller());
+        Pausable::pause(&e);
+    }
+
+    /// Unpause the contract
+    /// 
+    /// # Arguments
+    /// * `e` - The environment
+    /// 
+    /// # Panics
+    /// Panics if caller is not admin or if contract is already unpaused
+    pub fn unpause(e: Env) {
+        require_admin(&e, &e.caller());
+        Pausable::unpause(&e);
+    }
+
+    /// Check if the contract is paused
+    /// 
+    /// # Arguments
+    /// * `e` - The environment
+    /// 
+    /// # Returns
+    /// `true` if paused, `false` otherwise
+    pub fn is_paused(e: Env) -> bool {
+        Pausable::is_paused(&e)
+    }
+
 #[contract]
 pub struct CommitmentCoreContract;
 
@@ -264,10 +299,15 @@ impl CommitmentCoreContract {
             .instance()
             .set(&DataKey::TotalCommitments, &0u64);
 
-        // Initialize total value locked counter
+// Initialize total value locked counter
         e.storage()
             .instance()
             .set(&DataKey::TotalValueLocked, &0i128);
+
+        // Initialize paused state (default: not paused)
+        e.storage()
+            .instance()
+            .set(&Pausable::PAUSED_KEY, &false);
     }
 
     /// Create a new commitment
@@ -314,9 +354,12 @@ impl CommitmentCoreContract {
         asset_address: Address,
         rules: CommitmentRules,
     ) -> String {
-        // Reentrancy protection
+// Reentrancy protection
         require_no_reentrancy(&e);
         set_reentrancy_guard(&e, true);
+
+        // Check if contract is paused
+        Pausable::require_not_paused(&e);
 
         // Rate limit: per-owner commitment creation
         let fn_symbol = symbol_short!("create");
@@ -613,9 +656,12 @@ impl CommitmentCoreContract {
     /// # Reentrancy Protection
     /// Uses checks-effects-interactions pattern with reentrancy guard.
     pub fn settle(e: Env, commitment_id: String) {
-        // Reentrancy protection
+// Reentrancy protection
         require_no_reentrancy(&e);
         set_reentrancy_guard(&e, true);
+
+        // Check if contract is paused
+        Pausable::require_not_paused(&e);
 
         // CHECKS: Get and validate commitment
         let mut commitment = read_commitment(&e, &commitment_id)
@@ -685,9 +731,12 @@ impl CommitmentCoreContract {
     }
 
     pub fn early_exit(e: Env, commitment_id: String, caller: Address) {
-        // Reentrancy protection
+// Reentrancy protection
         require_no_reentrancy(&e);
         set_reentrancy_guard(&e, true);
+
+        // Check if contract is paused
+        Pausable::require_not_paused(&e);
 
         // CHECKS: Get and validate commitment
         let mut commitment = read_commitment(&e, &commitment_id)
@@ -770,9 +819,12 @@ impl CommitmentCoreContract {
     /// # Reentrancy Protection
     /// Uses checks-effects-interactions pattern with reentrancy guard.
     pub fn allocate(e: Env, commitment_id: String, target_pool: Address, amount: i128) {
-        // Reentrancy protection
+// Reentrancy protection
         require_no_reentrancy(&e);
         set_reentrancy_guard(&e, true);
+
+        // Check if contract is paused
+        Pausable::require_not_paused(&e);
 
         // Rate limit allocations per target pool address
         let fn_symbol = symbol_short!("alloc");

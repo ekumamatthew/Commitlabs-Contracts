@@ -5,7 +5,7 @@ use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype, Address, Env, Map, Vec, 
     symbol_short, Symbol,
 };
-use shared_utils::RateLimiter;
+use shared_utils::{RateLimiter, Pausable};
 
 // ============================================================================
 // ERROR CODES - Error Handling
@@ -122,11 +122,16 @@ impl AllocationStrategiesContract {
         // Validate addresses
         admin.require_auth();
         
-        // Set storage
+// Set storage
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::CommitmentCore, &commitment_core);
         env.storage().instance().set(&DataKey::Initialized, &true);
         env.storage().instance().set(&DataKey::PoolRegistry, &Vec::<u32>::new(&env));
+
+        // Initialize paused state (default: not paused)
+        env.storage()
+            .instance()
+            .set(&Pausable::PAUSED_KEY, &false);
         
         // Emit initialization event
         env.events().publish(
@@ -292,8 +297,11 @@ impl AllocationStrategiesContract {
         let fn_symbol = symbol_short!("alloc");
         RateLimiter::check(&env, &caller, &fn_symbol);
 
-        // Set reentrancy guard
+// Set reentrancy guard
         Self::set_reentrancy_guard(&env, true);
+
+        // Check if contract is paused
+        Pausable::require_not_paused(&env);
 
         // Input validation
         if amount <= 0 {
@@ -410,7 +418,7 @@ impl AllocationStrategiesContract {
         let fn_symbol = symbol_short!("rebal");
         RateLimiter::check(&env, &caller, &fn_symbol);
 
-        // Verify ownership
+// Verify ownership
         let owner: Address = env.storage().persistent()
             .get(&DataKey::AllocationOwner(commitment_id))
             .ok_or(Error::AllocationNotFound)?;
@@ -418,6 +426,9 @@ impl AllocationStrategiesContract {
         if owner != caller {
             return Err(Error::Unauthorized);
         }
+
+        // Check if contract is paused
+        Pausable::require_not_paused(&env);
 
         Self::set_reentrancy_guard(&env, true);
 
@@ -560,7 +571,7 @@ impl AllocationStrategiesContract {
         Ok(())
     }
 
-    fn require_admin(env: &Env, address: &Address) -> Result<(), Error> {
+fn require_admin(env: &Env, address: &Address) -> Result<(), Error> {
         let admin: Address = env.storage().instance()
             .get(&DataKey::Admin)
             .ok_or(Error::NotInitialized)?;
@@ -569,6 +580,51 @@ impl AllocationStrategiesContract {
             return Err(Error::Unauthorized);
         }
         Ok(())
+    }
+
+    /// Pause the contract
+    /// 
+    /// # Arguments
+    /// * `env` - The environment
+    /// 
+    /// # Panics
+    /// Panics if caller is not admin or if contract is already paused
+    pub fn pause(env: Env) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("Contract not initialized"));
+        admin.require_auth();
+        Pausable::pause(&env);
+    }
+
+    /// Unpause the contract
+    /// 
+    /// # Arguments
+    /// * `env` - The environment
+    /// 
+    /// # Panics
+    /// Panics if caller is not admin or if contract is already unpaused
+    pub fn unpause(env: Env) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("Contract not initialized"));
+        admin.require_auth();
+        Pausable::unpause(&env);
+    }
+
+    /// Check if the contract is paused
+    /// 
+    /// # Arguments
+    /// * `env` - The environment
+    /// 
+    /// # Returns
+    /// `true` if paused, `false` otherwise
+    pub fn is_paused(env: Env) -> bool {
+        Pausable::is_paused(&env)
     }
 
     /// Configure rate limits for this contract's core functions.

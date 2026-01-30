@@ -971,3 +971,86 @@ fn test_balance_updates_after_transfer() {
     assert_eq!(owner1_nfts.len(), 1);
     assert_eq!(owner2_nfts.len(), 2);
 }
+
+#[test]
+#[should_panic(expected = "Contract is paused - operation not allowed")]
+fn test_mint_blocked_when_paused() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+    client.pause();
+
+    client.mint(
+        &owner,
+        &String::from_str(&e, "paused_commitment"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+}
+
+#[test]
+#[should_panic(expected = "Contract is paused - operation not allowed")]
+fn test_transfer_blocked_when_paused() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let (admin, client) = setup_contract(&e);
+    let owner1 = Address::generate(&e);
+    let owner2 = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let token_id = client.mint(
+        &owner1,
+        &String::from_str(&e, "commitment_001"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    client.pause();
+    client.transfer(&owner1, &owner2, &token_id);
+}
+
+#[test]
+fn test_unpause_restores_transfer() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let (admin, client) = setup_contract(&e);
+    let owner1 = Address::generate(&e);
+    let owner2 = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let token_id = client.mint(
+        &owner1,
+        &String::from_str(&e, "commitment_002"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    client.pause();
+    client.unpause();
+
+    client.transfer(&owner1, &owner2, &token_id);
+    assert_eq!(client.owner_of(&token_id), owner2);
+}
