@@ -1,17 +1,17 @@
 [workspace]
 members = [
-    # "contracts/shared_utils",
-    # "contracts/commitment_nft",
-    # "contracts/commitment_marketplace",
+    "contracts/shared_utils",
+    "contracts/commitment_nft",
+    "contracts/commitment_marketplace",
     "contracts/commitment_core",
-    # "contracts/attestation_engine",
+ 
     "contracts/allocation_logic",
-    # "contracts/commitment_interface",
-    # "contracts/commitment_transformation",
-    # "contracts/price_oracle",
-    # "contracts/mock_oracle",
-    # "contracts/version-system",
-    # "contracts/time_lock"
+    "contracts/commitment_interface",
+    "contracts/commitment_transformation",
+    "contracts/price_oracle",
+    "contracts/mock_oracle",
+    "contracts/version-system",
+    "contracts/time_lock"
 ]
 # Note: tests/integration is excluded from workspace to prevent testutils feature
 # from being enabled during WASM builds. Run integration tests separately.
