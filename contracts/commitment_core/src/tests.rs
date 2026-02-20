@@ -743,14 +743,47 @@ fn test_early_exit_event() {
 #[should_panic(expected = "Commitment not found")]
 fn test_allocate_event() {
     let e = Env::default();
+    e.mock_all_auths();
+    let admin = Address::generate(&e);
     let target_pool = Address::generate(&e);
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
+    client.initialize(&admin, &Address::generate(&e));
 
     let commitment_id = String::from_str(&e, "test_id");
-    // This will panic because commitment doesn't exist
-    // The test verifies that the function properly validates preconditions
-    client.allocate(&commitment_id, &target_pool, &500);
+    client.allocate(&admin, &commitment_id, &target_pool, &500);
+}
+
+#[test]
+fn test_add_remove_is_authorized_allocator() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let admin = Address::generate(&e);
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let client = CommitmentCoreContractClient::new(&e, &contract_id);
+    client.initialize(&admin, &Address::generate(&e));
+    let allocator = Address::generate(&e);
+
+    assert!(!client.is_authorized(&allocator));
+    client.add_authorized_contract(&admin, &allocator);
+    assert!(client.is_authorized(&allocator));
+    client.remove_authorized_contract(&admin, &allocator);
+    assert!(!client.is_authorized(&allocator));
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized")]
+fn test_allocate_unauthorized_caller_fails() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let admin = Address::generate(&e);
+    let target_pool = Address::generate(&e);
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let client = CommitmentCoreContractClient::new(&e, &contract_id);
+    client.initialize(&admin, &Address::generate(&e));
+    let commitment_id = String::from_str(&e, "test_id");
+    let unauthorized = Address::generate(&e);
+    client.allocate(&unauthorized, &commitment_id, &target_pool, &500);
 }
 
 /// Helper function to create a test commitment with custom penalty

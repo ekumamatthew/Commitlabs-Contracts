@@ -344,9 +344,32 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         Pausable::is_paused(&e)
     }
 
-/// Check if an address is a verifier (public version)
+/// Check if an address is a verifier (public version).
     pub fn is_verifier(e: Env, address: Address) -> bool {
         Self::is_authorized_verifier(&e, &address)
+    }
+
+    /// Return true if the given address is authorized (admin or in verifier whitelist). Same as is_verifier.
+    pub fn is_authorized(e: Env, contract_address: Address) -> bool {
+        Self::is_authorized_verifier(&e, &contract_address)
+    }
+
+    /// Add an authorized contract (verifier) to the whitelist. Admin-only. Same as add_verifier.
+    pub fn add_authorized_contract(
+        e: Env,
+        caller: Address,
+        contract_address: Address,
+    ) -> Result<(), AttestationError> {
+        Self::add_verifier(e, caller, contract_address)
+    }
+
+    /// Remove an authorized contract (verifier) from the whitelist. Admin-only. Same as remove_verifier.
+    pub fn remove_authorized_contract(
+        e: Env,
+        caller: Address,
+        contract_address: Address,
+    ) -> Result<(), AttestationError> {
+        Self::remove_verifier(e, caller, contract_address)
     }
 
     /// Get the admin address
@@ -726,12 +749,12 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         // 8. Create attestation record
         let timestamp = e.ledger().timestamp();
         let attestation = Attestation {
-            commitment_id: commitment_id_clone,
-            attestation_type: attestation_type_clone,
-            data: data_clone,
-            timestamp: e.ledger().timestamp(),
-            verified_by: verified_by_clone,
-            is_compliant: true, // Default to true, can be updated by logic
+            commitment_id: commitment_id.clone(),
+            attestation_type: attestation_type.clone(),
+            data: data.clone(),
+            timestamp,
+            verified_by: caller.clone(),
+            is_compliant,
         };
 
         // 9. Store attestation in commitment's list
