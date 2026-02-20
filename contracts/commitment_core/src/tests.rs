@@ -643,11 +643,19 @@ fn test_update_value_event() {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
         add_authorized_updater(&e, &updater);
         let commitment = create_test_commitment(
-            &e, "test_id", &owner, 1000, 1000, 10, 30,
+            &e,
+            "test_id",
+            &owner,
+            1000,
+            1000,
+            10,
+            30,
             e.ledger().timestamp(),
         );
         set_commitment(&e, &commitment);
-        e.storage().instance().set(&DataKey::TotalValueLocked, &1000i128);
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalValueLocked, &1000i128);
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
@@ -657,7 +665,6 @@ fn test_update_value_event() {
     assert_eq!(updated.current_value, 1100);
     assert_eq!(client.get_total_value_locked(), 1100);
 }
-
 
 #[test]
 #[should_panic]
@@ -675,13 +682,26 @@ fn test_update_value_rate_limit_enforced() {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
         add_authorized_updater(&e, &updater);
         CommitmentCoreContract::set_rate_limit(
-            e.clone(), admin.clone(), symbol_short!("upd_val"), 60, 1,
+            e.clone(),
+            admin.clone(),
+            symbol_short!("upd_val"),
+            60,
+            1,
         );
         let commitment = create_test_commitment(
-            &e, "rl_test", &owner, 1000, 1000, 10, 30, e.ledger().timestamp(),
+            &e,
+            "rl_test",
+            &owner,
+            1000,
+            1000,
+            10,
+            30,
+            e.ledger().timestamp(),
         );
         set_commitment(&e, &commitment);
-        e.storage().instance().set(&DataKey::TotalValueLocked, &1000i128);
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalValueLocked, &1000i128);
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
@@ -1229,7 +1249,9 @@ fn test_update_value_no_violation() {
         add_authorized_updater(&e, &updater);
         let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
         set_commitment(&e, &commitment);
-        e.storage().instance().set(&DataKey::TotalValueLocked, &1000i128);
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalValueLocked, &1000i128);
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
@@ -1256,7 +1278,9 @@ fn test_update_value_triggers_violation() {
         add_authorized_updater(&e, &updater);
         let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
         set_commitment(&e, &commitment);
-        e.storage().instance().set(&DataKey::TotalValueLocked, &1000i128);
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalValueLocked, &1000i128);
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
