@@ -197,6 +197,76 @@ fn test_mint_without_initialize_fails() {
 }
 
 // ============================================
+// Commitment Type Validation Tests
+// ============================================
+
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")] // InvalidCommitmentType
+fn test_mint_empty_commitment_type() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_empty"),
+        &30,
+        &10,
+        &String::from_str(&e, ""),
+        &1000,
+        &asset_address,
+        &5,
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")] // InvalidCommitmentType
+fn test_mint_invalid_commitment_type() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_invalid"),
+        &30,
+        &10,
+        &String::from_str(&e, "invalid"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")] // InvalidCommitmentType
+fn test_mint_wrong_case_commitment_type() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_case"),
+        &30,
+        &10,
+        &String::from_str(&e, "Safe"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+}
+
+// ============================================
 // get_metadata Tests
 // ============================================
 
