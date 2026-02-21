@@ -898,6 +898,91 @@ fn test_settle_already_settled() {
     client.settle(&token_id); // Should fail
 }
 
+#[test]
+fn test_settle_first_settle_marks_inactive() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+    client.initialize(&admin);
+
+    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+
+    e.ledger().with_mut(|li| li.timestamp = 172800);
+
+    // Initial state: active
+    assert_eq!(client.is_active(&token_id), true);
+
+    // First settle: success
+    client.settle(&token_id);
+
+    // Result state: inactive
+    assert_eq!(client.is_active(&token_id), false);
+}
+
+#[test]
+fn test_settle_double_settle_returns_error() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+    client.initialize(&admin);
+
+    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+    e.ledger().with_mut(|li| li.timestamp = 172800);
+
+    // First settle
+    client.settle(&token_id);
+
+    // Second settle: should return ContractError::AlreadySettled (8)
+    let result = client.try_settle(&token_id);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_settle_consistency_after_double_settle() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+    client.initialize(&admin);
+
+    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+    e.ledger().with_mut(|li| li.timestamp = 172800);
+
+    client.settle(&token_id);
+    let _ = client.try_settle(&token_id); // Redundant settle
+
+    // State remains consistent
+    assert_eq!(client.is_active(&token_id), false);
+    
+    // get_metadata remains consistent
+    let metadata = client.get_metadata(&token_id);
+    assert_eq!(metadata.is_active, false);
+    assert_eq!(metadata.owner, owner);
+}
+
+#[test]
+fn test_settle_no_double_events() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+    client.initialize(&admin);
+
+    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+    e.ledger().with_mut(|li| li.timestamp = 172800);
+
+    client.settle(&token_id);
+    let events_after_first = e.events().all().len();
+
+    let _ = client.try_settle(&token_id); // Redundant settle
+    let events_after_second = e.events().all().len();
+
+    // Verify no double events
+    assert_eq!(events_after_first, events_after_second, "Redundant settle should not emit extra events");
+}
+
 // ============================================
 // is_expired Tests
 // ============================================
@@ -1186,7 +1271,7 @@ fn test_unpause_restores_transfer() {
     let token_id = client.mint(
         &owner1,
         &String::from_str(&e, "commitment_002"),
-        &30,
+        &1, // 1 day duration so we can settle it
         &10,
         &String::from_str(&e, "balanced"),
         &1000,
@@ -1196,6 +1281,12 @@ fn test_unpause_restores_transfer() {
 
     client.pause();
     client.unpause();
+
+    // Fast forward and settle to unlock the NFT
+    e.ledger().with_mut(|li| {
+        li.timestamp = 172800; // 2 days
+    });
+    client.settle(&token_id);
 
     client.transfer(&owner1, &owner2, &token_id);
     assert_eq!(client.owner_of(&token_id), owner2);
