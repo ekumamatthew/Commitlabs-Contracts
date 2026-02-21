@@ -516,7 +516,7 @@ impl CommitmentCoreContract {
             .instance()
             .set(&DataKey::AuthorizedAllocator(contract_address.clone()), &true);
         e.events().publish(
-            (symbol_short!("AuthorizedContractAdded"),),
+            (Symbol::new(&e, "AuthorizedContractAdded"),),
             (contract_address, e.ledger().timestamp()),
         );
     }
@@ -528,7 +528,7 @@ impl CommitmentCoreContract {
             .instance()
             .remove(&DataKey::AuthorizedAllocator(contract_address.clone()));
         e.events().publish(
-            (symbol_short!("AuthorizedContractRemoved"),),
+            (Symbol::new(&e, "AuthorizedContractRemoved"),),
             (contract_address, e.ledger().timestamp()),
         );
     }

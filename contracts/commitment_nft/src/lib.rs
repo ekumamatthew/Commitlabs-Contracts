@@ -116,8 +116,7 @@ pub enum DataKey {
     Version,
 }
 
-// Events
-// const MINT: soroban_sdk::Symbol = symbol_short!("mint"); // TODO: Use this in mint function
+const CURRENT_VERSION: u32 = 1;
 
 #[cfg(test)]
 mod tests;
