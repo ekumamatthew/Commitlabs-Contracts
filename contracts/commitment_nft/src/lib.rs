@@ -1,7 +1,9 @@
 #![no_std]
-use soroban_sdk::{contract, BytesN, contractimpl, contracttype, contracterror, symbol_short, Address, Env, String, Vec, Symbol};
-use shared_utils::{Pausable, EmergencyControl};
-
+use shared_utils::{EmergencyControl, Pausable};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
+    String, Symbol, Vec,
+};
 
 // ============================================================================
 // Error Types
@@ -152,7 +154,9 @@ impl CommitmentNFTContract {
         e.storage().instance().set(&DataKey::TokenIds, &token_ids);
 
         // Initialize paused state (default: not paused)
-        e.storage().instance().set(&Pausable::paused_key(&e), &false);
+        e.storage()
+            .instance()
+            .set(&Pausable::paused_key(&e), &false);
 
         Ok(())
     }
@@ -235,11 +239,7 @@ impl CommitmentNFTContract {
     }
 
     /// Update admin (admin-only).
-    pub fn set_admin(
-        e: Env,
-        caller: Address,
-        new_admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn set_admin(e: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         require_admin(&e, &caller)?;
         e.storage().instance().set(&DataKey::Admin, &new_admin);
         Ok(())
@@ -258,11 +258,7 @@ impl CommitmentNFTContract {
     }
 
     /// Migrate storage from a previous version to CURRENT_VERSION (admin-only).
-    pub fn migrate(
-        e: Env,
-        caller: Address,
-        from_version: u32,
-    ) -> Result<(), ContractError> {
+    pub fn migrate(e: Env, caller: Address, from_version: u32) -> Result<(), ContractError> {
         require_admin(&e, &caller)?;
 
         let stored_version = read_version(&e);
@@ -282,7 +278,9 @@ impl CommitmentNFTContract {
             e.storage().instance().set(&DataKey::TokenIds, &token_ids);
         }
         if !e.storage().instance().has(&DataKey::ReentrancyGuard) {
-            e.storage().instance().set(&DataKey::ReentrancyGuard, &false);
+            e.storage()
+                .instance()
+                .set(&DataKey::ReentrancyGuard, &false);
         }
 
         e.storage()

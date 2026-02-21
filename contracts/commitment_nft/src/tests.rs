@@ -906,7 +906,16 @@ fn test_settle_first_settle_marks_inactive() {
     let asset_address = Address::generate(&e);
     client.initialize(&admin);
 
-    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "test"),
+        &1,
+        &10,
+        &String::from_str(&e, "safe"),
+        &1000,
+        &asset_address,
+        &5,
+    );
 
     e.ledger().with_mut(|li| li.timestamp = 172800);
 
@@ -928,7 +937,16 @@ fn test_settle_double_settle_returns_error() {
     let asset_address = Address::generate(&e);
     client.initialize(&admin);
 
-    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "test"),
+        &1,
+        &10,
+        &String::from_str(&e, "safe"),
+        &1000,
+        &asset_address,
+        &5,
+    );
     e.ledger().with_mut(|li| li.timestamp = 172800);
 
     // First settle
@@ -947,7 +965,16 @@ fn test_settle_consistency_after_double_settle() {
     let asset_address = Address::generate(&e);
     client.initialize(&admin);
 
-    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "test"),
+        &1,
+        &10,
+        &String::from_str(&e, "safe"),
+        &1000,
+        &asset_address,
+        &5,
+    );
     e.ledger().with_mut(|li| li.timestamp = 172800);
 
     client.settle(&token_id);
@@ -955,7 +982,7 @@ fn test_settle_consistency_after_double_settle() {
 
     // State remains consistent
     assert_eq!(client.is_active(&token_id), false);
-    
+
     // get_metadata remains consistent
     let metadata = client.get_metadata(&token_id);
     assert_eq!(metadata.is_active, false);
@@ -970,7 +997,16 @@ fn test_settle_no_double_events() {
     let asset_address = Address::generate(&e);
     client.initialize(&admin);
 
-    let token_id = client.mint(&owner, &String::from_str(&e, "test"), &1, &10, &String::from_str(&e, "safe"), &1000, &asset_address, &5);
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "test"),
+        &1,
+        &10,
+        &String::from_str(&e, "safe"),
+        &1000,
+        &asset_address,
+        &5,
+    );
     e.ledger().with_mut(|li| li.timestamp = 172800);
 
     client.settle(&token_id);
@@ -980,7 +1016,10 @@ fn test_settle_no_double_events() {
     let events_after_second = e.events().all().len();
 
     // Verify no double events
-    assert_eq!(events_after_first, events_after_second, "Redundant settle should not emit extra events");
+    assert_eq!(
+        events_after_first, events_after_second,
+        "Redundant settle should not emit extra events"
+    );
 }
 
 // ============================================
