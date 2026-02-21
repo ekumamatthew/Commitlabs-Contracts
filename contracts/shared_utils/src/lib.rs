@@ -19,8 +19,12 @@ pub mod error_codes;
 pub mod errors;
 pub mod events;
 pub mod math;
+pub mod storage;
+pub mod time;
 pub mod rate_limiting;
 pub mod pausable;
+pub mod validation;
+pub mod batch;
 
 #[cfg(test)]
 mod tests;
@@ -32,5 +36,9 @@ pub use error_codes::*;
 pub use errors::*;
 pub use events::*;
 pub use math::*;
+pub use storage::*;
+pub use time::*;
 pub use rate_limiting::*;
 pub use pausable::*;
+pub use validation::*;
+pub use batch::*;

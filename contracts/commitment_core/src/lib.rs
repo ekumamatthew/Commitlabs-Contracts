@@ -202,7 +202,12 @@ fn require_admin(e: &Env, caller: &Address) {
     /// # Panics
     /// Panics if caller is not admin or if contract is already paused
     pub fn pause(e: Env) {
-        require_admin(&e, &e.caller());
+        let admin = e
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Admin)
+            .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "pause"));
+        admin.require_auth();
         Pausable::pause(&e);
     }
 
@@ -214,7 +219,12 @@ fn require_admin(e: &Env, caller: &Address) {
     /// # Panics
     /// Panics if caller is not admin or if contract is already unpaused
     pub fn unpause(e: Env) {
-        require_admin(&e, &e.caller());
+        let admin = e
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Admin)
+            .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "unpause"));
+        admin.require_auth();
         Pausable::unpause(&e);
     }
 

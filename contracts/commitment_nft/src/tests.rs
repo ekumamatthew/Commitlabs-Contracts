@@ -1197,6 +1197,12 @@ fn test_unpause_restores_transfer() {
     client.pause();
     client.unpause();
 
+    // NFT is still active after unpause; settle it first to make it transferable.
+    e.ledger().with_mut(|li| {
+        li.timestamp += 31 * 86_400;
+    });
+    client.settle(&token_id);
+
     client.transfer(&owner1, &owner2, &token_id);
     assert_eq!(client.owner_of(&token_id), owner2);
 }

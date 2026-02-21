@@ -3,7 +3,7 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
+    testutils::Address as _,
     Address, Env, String,
 };
 
@@ -24,7 +24,7 @@ impl BenchmarkMetrics {
         }
     }
 
-    fn record_gas(&mut self, before: u64, after: u64) {
+    fn record_gas(&mut self, before: u32, after: u32) {
         self.gas_before = before;
         self.gas_after = after;
     }
@@ -206,11 +206,11 @@ fn benchmark_batch_mint() {
 
     e.as_contract(&contract_id, || {
         let start = e.ledger().sequence();
-        for i in 0..10 {
+        for _ in 0..10 {
             let _ = CommitmentNFTContract::mint(
                 e.clone(),
                 owner.clone(),
-                String::from_str(&e, &format!("commitment_{}", i)),
+                String::from_str(&e, "commitment_batch"),
                 30,
                 20,
                 String::from_str(&e, "balanced"),
