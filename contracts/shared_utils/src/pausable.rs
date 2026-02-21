@@ -1,15 +1,12 @@
 //! Pausable contract functionality for emergency stops
 
-use soroban_sdk::{Env, Symbol};
+use soroban_sdk::{Env, symbol_short};
 use super::events::Events;
 
 /// Pausable contract functionality
 pub struct Pausable;
 
 impl Pausable {
-    /// Storage key for the paused state
-    pub const PAUSED_KEY: Symbol = Symbol::new("paused");
-
     /// Check if the contract is currently paused
     /// 
     /// # Arguments
@@ -18,9 +15,10 @@ impl Pausable {
     /// # Returns
     /// `true` if paused, `false` otherwise
     pub fn is_paused(e: &Env) -> bool {
+        let paused_key = symbol_short!("paused");
         e.storage()
             .instance()
-            .get::<_, bool>(&Self::PAUSED_KEY)
+            .get::<_, bool>(&paused_key)
             .unwrap_or(false)
     }
 
@@ -37,12 +35,13 @@ impl Pausable {
         }
 
         // Set paused state
+        let paused_key = symbol_short!("paused");
         e.storage()
             .instance()
-            .set(&Self::PAUSED_KEY, &true);
+            .set(&paused_key, &true);
 
         // Emit pause event
-        Events::emit(e, Symbol::new(e, "Pause"), ());
+        Events::emit(e, symbol_short!("Pause"), ());
     }
 
     /// Unpause the contract
@@ -58,12 +57,13 @@ impl Pausable {
         }
 
         // Clear paused state
+        let paused_key = symbol_short!("paused");
         e.storage()
             .instance()
-            .set(&Self::PAUSED_KEY, &false);
+            .set(&paused_key, &false);
 
         // Emit unpause event
-        Events::emit(e, Symbol::new(e, "Unpause"), ());
+        Events::emit(e, symbol_short!("Unpause"), ());
     }
 
     /// Modifier to require that the contract is not paused

@@ -198,11 +198,12 @@ fn require_admin(e: &Env, caller: &Address) {
     /// 
     /// # Arguments
     /// * `e` - The environment
+    /// * `caller` - The caller address (must be admin)
     /// 
     /// # Panics
     /// Panics if caller is not admin or if contract is already paused
-    pub fn pause(e: Env) {
-        require_admin(&e, &e.caller());
+    pub fn pause(e: Env, caller: Address) {
+        require_admin(&e, &caller);
         Pausable::pause(&e);
     }
 
@@ -210,11 +211,12 @@ fn require_admin(e: &Env, caller: &Address) {
     /// 
     /// # Arguments
     /// * `e` - The environment
+    /// * `caller` - The caller address (must be admin)
     /// 
     /// # Panics
     /// Panics if caller is not admin or if contract is already unpaused
-    pub fn unpause(e: Env) {
-        require_admin(&e, &e.caller());
+    pub fn unpause(e: Env, caller: Address) {
+        require_admin(&e, &caller);
         Pausable::unpause(&e);
     }
 
@@ -305,9 +307,10 @@ impl CommitmentCoreContract {
             .set(&DataKey::TotalValueLocked, &0i128);
 
         // Initialize paused state (default: not paused)
+        let paused_key = symbol_short!("paused");
         e.storage()
             .instance()
-            .set(&Pausable::PAUSED_KEY, &false);
+            .set(&paused_key, &false);
     }
 
     /// Create a new commitment

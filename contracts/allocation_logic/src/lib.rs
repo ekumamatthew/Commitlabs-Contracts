@@ -1,13 +1,12 @@
 // Allocation Strategies Contract
 #![no_std]
 
-use shared_utils::RateLimiter;
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, Symbol, Vec,
 };
-use shared_utils::{RateLimiter, Pausable};
+use shared_utils::{Pausable, RateLimiter};
 
-// ============================================================================
+pub const CURRENT_VERSION: u32 = 1;
 // ERROR CODES - Error Handling
 // ============================================================================
 #[contracterror]
@@ -134,9 +133,10 @@ impl AllocationStrategiesContract {
         env.storage().instance().set(&DataKey::PoolRegistry, &Vec::<u32>::new(&env));
 
         // Initialize paused state (default: not paused)
+        let paused_key = symbol_short!("paused");
         env.storage()
             .instance()
-            .set(&Pausable::PAUSED_KEY, &false);
+            .set(&paused_key, &false);
         
         // Emit initialization event
         env.events()
