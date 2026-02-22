@@ -355,7 +355,10 @@ fn test_get_metadata_nonexistent_token_returns_error() {
     let (admin, client) = setup_contract(&e);
     client.initialize(&admin);
     let result = client.try_get_metadata(&999);
-    assert!(result.is_err(), "get_metadata(non-existent token_id) must return error, not panic");
+    assert!(
+        result.is_err(),
+        "get_metadata(non-existent token_id) must return error, not panic"
+    );
 }
 
 #[test]
@@ -364,7 +367,10 @@ fn test_owner_of_nonexistent_token_returns_error() {
     let (admin, client) = setup_contract(&e);
     client.initialize(&admin);
     let result = client.try_owner_of(&999);
-    assert!(result.is_err(), "owner_of(non-existent token_id) must return error, not panic");
+    assert!(
+        result.is_err(),
+        "owner_of(non-existent token_id) must return error, not panic"
+    );
 }
 
 #[test]
@@ -373,7 +379,10 @@ fn test_is_active_nonexistent_token_returns_error() {
     let (admin, client) = setup_contract(&e);
     client.initialize(&admin);
     let result = client.try_is_active(&999);
-    assert!(result.is_err(), "is_active(non-existent token_id) must return error, not panic");
+    assert!(
+        result.is_err(),
+        "is_active(non-existent token_id) must return error, not panic"
+    );
 }
 
 // ============================================

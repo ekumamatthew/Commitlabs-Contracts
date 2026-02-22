@@ -1,11 +1,11 @@
 // Allocation Strategies Contract
 #![no_std]
 
+use shared_utils::{Pausable, RateLimiter};
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map,
     Symbol, Vec,
 };
-use shared_utils::{Pausable, RateLimiter};
 
 // ============================================================================
 // ERROR CODES - Error Handling
@@ -104,8 +104,6 @@ pub enum DataKey {
     AllocationOwner(u64), // Track allocation ownership
     Version,              // Contract version
 }
-
-const CURRENT_VERSION: u32 = 1;
 
 // ============================================================================
 // MAIN CONTRACT

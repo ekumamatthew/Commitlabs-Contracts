@@ -111,22 +111,22 @@ pub enum DataKey {
     AuthorizedUpdaters,        // whitelist of authorized updaters
 }
 
-/// Transfer assets from owner to contract
+// ─── Token helpers ────────────────────────────────────────────────────────────
+
+/// Transfer assets from owner to contract.
 fn transfer_assets(e: &Env, from: &Address, to: &Address, asset_address: &Address, amount: i128) {
     let token_client = token::Client::new(e, asset_address);
 
-    // Check balance first
     let balance = token_client.balance(from);
     if balance < amount {
         log!(e, "Insufficient balance: {} < {}", balance, amount);
         fail(e, CommitmentError::InsufficientBalance, "transfer_assets");
     }
 
-    // Transfer tokens (fails transaction if unsuccessful)
     token_client.transfer(from, to, &amount);
 }
 
-/// Helper function to call NFT contract mint function
+/// Call the NFT contract mint function.
 fn call_nft_mint(
     e: &Env,
     nft_contract: &Address,
@@ -147,12 +147,11 @@ fn call_nft_mint(
     args.push_back(initial_amount.into_val(e));
     args.push_back(asset_address.clone().into_val(e));
 
-    // In Soroban, contract calls return the value directly
-    // Failures cause the entire transaction to fail
     e.invoke_contract::<u32>(nft_contract, &Symbol::new(e, "mint"), args)
 }
 
-// Storage helpers
+// ─── Storage helpers ──────────────────────────────────────────────────────────
+
 fn read_commitment(e: &Env, commitment_id: &String) -> Option<Commitment> {
     e.storage()
         .instance()
@@ -172,7 +171,6 @@ fn has_commitment(e: &Env, commitment_id: &String) -> bool {
         .has(&DataKey::Commitment(commitment_id.clone()))
 }
 
-/// Reentrancy protection helpers
 fn require_no_reentrancy(e: &Env) {
     let guard: bool = e
         .storage()
@@ -217,16 +215,6 @@ fn require_authorized_updater(e: &Env, caller: &Address) {
         .unwrap_or(Vec::new(e));
     if !updaters.contains(caller) {
         fail(e, CommitmentError::NotAuthorizedUpdater, "Unauthorized");
-/// Pause the contract
-    /// 
-    /// # Arguments
-    /// * `e` - The environment
-    /// 
-    /// # Panics
-    /// Panics if caller is not admin or if contract is already paused
-    pub fn pause(e: Env, caller: Address) {
-        require_admin(&e, &caller);
-        Pausable::pause(&e);
     }
 }
 
@@ -241,17 +229,6 @@ fn add_authorized_updater(e: &Env, updater: &Address) {
         e.storage()
             .instance()
             .set(&DataKey::AuthorizedUpdaters, &updaters);
-    /// Unpause the contract
-    /// 
-    /// # Arguments
-    /// * `e` - The environment
-    /// * `caller` - Must be admin
-    /// 
-    /// # Panics
-    /// Panics if caller is not admin or if contract is already unpaused
-    pub fn unpause(e: Env, caller: Address) {
-        require_admin(&e, &caller);
-        Pausable::unpause(&e);
     }
 }
 
@@ -269,39 +246,21 @@ fn remove_authorized_updater(e: &Env, updater: &Address) {
     }
 }
 
-/// Pause the contract
-///
-/// # Arguments
-/// * `e` - The environment
-///
-/// # Panics
-/// Panics if caller is not admin or if contract is already paused
+// ─── Pause helpers (free functions used by the contract impl) ─────────────────
+
+/// Pause the contract. Caller must be admin.
 pub fn pause(e: Env, caller: Address) {
-    caller.require_auth();
     require_admin(&e, &caller);
     Pausable::pause(&e);
 }
 
-/// Unpause the contract
-///
-/// # Arguments
-/// * `e` - The environment
-///
-/// # Panics
-/// Panics if caller is not admin or if contract is already unpaused
+/// Unpause the contract. Caller must be admin.
 pub fn unpause(e: Env, caller: Address) {
-    caller.require_auth();
     require_admin(&e, &caller);
     Pausable::unpause(&e);
 }
 
-/// Check if the contract is paused
-///
-/// # Arguments
-/// * `e` - The environment
-///
-/// # Returns
-/// `true` if paused, `false` otherwise
+/// Returns `true` if the contract is currently paused.
 pub fn is_paused(e: Env) -> bool {
     Pausable::is_paused(&e)
 }
@@ -914,7 +873,7 @@ impl CommitmentCoreContract {
                 set_reentrancy_guard(&e, false);
                 fail(&e, CommitmentError::NotInitialized, "early_exit")
             });
-        
+
         // Call settle on NFT to mark it as inactive (pass self as caller for access control)
         let core_address = e.current_contract_address();
         let mut args = Vec::new(&e);

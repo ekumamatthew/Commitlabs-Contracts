@@ -1,9 +1,9 @@
 #![no_std]
+use shared_utils::{BatchError, BatchMode, BatchProcessor, BatchResultVoid, Pausable, RateLimiter};
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env,
     IntoVal, Map, String, Symbol, TryIntoVal, Val, Vec,
 };
-use shared_utils::{BatchError, BatchMode, BatchProcessor, BatchResultVoid, Pausable, RateLimiter};
 
 const CURRENT_VERSION: u32 = 1;
 
