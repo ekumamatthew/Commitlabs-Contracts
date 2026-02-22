@@ -76,6 +76,7 @@ pub struct CommitmentRules {
     pub commitment_type: String, // "safe", "balanced", "aggressive"
     pub early_exit_penalty: u32,
     pub min_fee_threshold: i128,
+    pub grace_period_days: u32,
 }
 
 #[contracttype]
@@ -212,6 +213,7 @@ fn require_admin(e: &Env, caller: &Address) {
     /// # Arguments
     /// * `e` - The environment
     /// * `caller` - The caller address (must be admin)
+    /// * `caller` - Must be admin
     /// 
     /// # Panics
     /// Panics if caller is not admin or if contract is already unpaused
@@ -709,7 +711,7 @@ impl CommitmentCoreContract {
         let token_client = token::Client::new(&e, &commitment.asset_address);
         token_client.transfer(&contract_address, &commitment.owner, &settlement_amount);
 
-        // Call NFT contract to mark NFT as settled
+        // Call NFT contract to mark NFT as settled (pass self as caller for access control)
         let nft_contract = e
             .storage()
             .instance()
@@ -718,8 +720,8 @@ impl CommitmentCoreContract {
                 set_reentrancy_guard(&e, false);
                 fail(&e, CommitmentError::NotInitialized, "settle")
             });
-        
         let mut args = Vec::new(&e);
+        args.push_back(contract_address.into_val(&e));
         args.push_back(commitment.nft_token_id.into_val(&e));
         e.invoke_contract::<()>(&nft_contract, &Symbol::new(&e, "settle"), args);
 
@@ -802,8 +804,10 @@ impl CommitmentCoreContract {
                 fail(&e, CommitmentError::NotInitialized, "early_exit")
             });
         
-        // Call settle on NFT to mark it as inactive
+        // Call settle on NFT to mark it as inactive (pass self as caller for access control)
+        let core_address = e.current_contract_address();
         let mut args = Vec::new(&e);
+        args.push_back(core_address.into_val(&e));
         args.push_back(commitment.nft_token_id.into_val(&e));
         e.invoke_contract::<()>(&nft_contract, &Symbol::new(&e, "settle"), args);
 
