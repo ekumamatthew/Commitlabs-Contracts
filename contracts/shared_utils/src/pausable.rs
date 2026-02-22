@@ -1,6 +1,6 @@
 //! Pausable contract functionality for emergency stops
 
-use soroban_sdk::{Env, Symbol};
+use soroban_sdk::{symbol_short, Env, Symbol};
 use super::events::Events;
 
 /// Pausable contract functionality
@@ -13,6 +13,7 @@ impl Pausable {
     pub fn paused_key(env: &Env) -> Symbol {
         Symbol::new(env, "paused")
     }
+
 
     /// Check if the contract is currently paused
     /// 
