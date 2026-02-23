@@ -114,16 +114,25 @@ pub enum DataKey {
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
+/// Check if owner has sufficient balance without transferring.
+/// Must be called in CHECKS phase before any state modifications.
+fn check_sufficient_balance(
+    e: &Env,
+    owner: &Address,
+    asset_address: &Address,
+    amount: i128,
+) {
+    let token_client = token::Client::new(e, asset_address);
+    let balance = token_client.balance(owner);
+    if balance < amount {
+        log!(e, "Insufficient balance: {} < {}", balance, amount);
+        fail(e, CommitmentError::InsufficientBalance, "check_sufficient_balance");
+    }
+}
+
 /// Transfer assets from owner to contract.
 fn transfer_assets(e: &Env, from: &Address, to: &Address, asset_address: &Address, amount: i128) {
     let token_client = token::Client::new(e, asset_address);
-
-    let balance = token_client.balance(from);
-    if balance < amount {
-        log!(e, "Insufficient balance: {} < {}", balance, amount);
-        fail(e, CommitmentError::InsufficientBalance, "transfer_assets");
-    }
-
     token_client.transfer(from, to, &amount);
 }
 
@@ -405,6 +414,9 @@ impl CommitmentCoreContract {
 
         // Validate rules
         Self::validate_rules(&e, &rules);
+
+        // CHECKS: Verify sufficient balance BEFORE any state modifications (CEI pattern)
+        check_sufficient_balance(&e, &owner, &asset_address, amount);
 
         // OPTIMIZATION: Read both counters and NFT contract once to minimize storage operations
         let (current_total, current_tvl, nft_contract) = {
