@@ -23,8 +23,6 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Add Soroban Rust targets
         run: |
@@ -33,8 +31,8 @@ jobs:
 
       - name: Install Stellar CLI via Homebrew
         run: |
-          brew tap stellar/stellar-cli || true
-          brew install stellar-cli || brew install stellar
+          brew install stellar/tap/stellar-cli || brew install stellar || echo "Stellar CLI installation skipped"
+        continue-on-error: true
 
       - name: Verify Stellar CLI installation
         run: |
