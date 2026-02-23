@@ -30,7 +30,6 @@ fn create_test_commitment(
             commitment_type: String::from_str(e, "balanced"),
             early_exit_penalty: 10,
             min_fee_threshold: 1000,
-            grace_period_days: 0,
         },
         amount,
         asset_address: Address::generate(e),
@@ -84,7 +83,6 @@ fn test_create_commitment_valid() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     let _amount = 1000i128;
@@ -108,7 +106,6 @@ fn test_validate_rules_invalid_duration() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Test invalid duration - should panic
@@ -129,7 +126,6 @@ fn test_validate_rules_invalid_max_loss() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Test invalid max loss percent - should panic
@@ -150,7 +146,6 @@ fn test_validate_rules_invalid_type() {
         commitment_type: String::from_str(&e, "invalid_type"), // Invalid type
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Test invalid commitment type - should panic
@@ -615,7 +610,6 @@ fn test_create_commitment_event() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Note: This might panic if mock token transfers are not set up, but we are testing events.
@@ -647,7 +641,6 @@ fn test_update_value_event() {
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
         let commitment = create_test_commitment(
             &e,
             "test_id",
@@ -665,7 +658,7 @@ fn test_update_value_event() {
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.update_value(&updater, &commitment_id, &1100);
+    client.update_value(&commitment_id, &1100);
 
     let updated = client.get_commitment(&commitment_id);
     assert_eq!(updated.current_value, 1100);
@@ -686,7 +679,6 @@ fn test_update_value_rate_limit_enforced() {
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
         CommitmentCoreContract::set_rate_limit(
             e.clone(),
             admin.clone(),
@@ -712,9 +704,9 @@ fn test_update_value_rate_limit_enforced() {
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
     // First call — allowed
-    client.update_value(&updater, &commitment_id, &100);
+    client.update_value(&commitment_id, &100);
     // Second call — should hit rate limit and panic
-    client.update_value(&updater, &commitment_id, &200);
+    client.update_value(&commitment_id, &200);
 }
 
 #[test]
@@ -782,7 +774,6 @@ fn create_test_commitment_with_penalty(
             commitment_type: String::from_str(e, "balanced"),
             early_exit_penalty,
             min_fee_threshold: 1000,
-            grace_period_days: 0,
         },
         amount,
         asset_address: Address::generate(e),
@@ -1217,27 +1208,18 @@ fn test_early_exit_status_transition() {
     assert_eq!(before.status, String::from_str(&e, "active"));
 }
 #[test]
-#[should_panic]
-fn test_update_value_unauthorized_caller() {
+fn test_update_value_updates_without_updater_param() {
     let e = Env::default();
     e.mock_all_auths();
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let owner = Address::generate(&e);
-    let unauthorized = Address::generate(&e);
-
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
         let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
         set_commitment(&e, &commitment);
-        // unauthorized is NOT in the whitelist, so this must panic
-        CommitmentCoreContract::update_value(
-            e.clone(),
-            unauthorized.clone(),
-            String::from_str(&e, "test_id"),
-            900,
-        );
+        CommitmentCoreContract::update_value(e.clone(), String::from_str(&e, "test_id"), 900);
     });
 }
 
@@ -1249,11 +1231,8 @@ fn test_update_value_no_violation() {
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let owner = Address::generate(&e);
-    let updater = Address::generate(&e);
-
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
         let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
         set_commitment(&e, &commitment);
         e.storage()
@@ -1262,7 +1241,7 @@ fn test_update_value_no_violation() {
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.update_value(&updater, &String::from_str(&e, "test_id"), &950);
+    client.update_value(&String::from_str(&e, "test_id"), &950);
 
     let updated = client.get_commitment(&String::from_str(&e, "test_id"));
     assert_eq!(updated.current_value, 950);
@@ -1278,11 +1257,8 @@ fn test_update_value_triggers_violation() {
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let owner = Address::generate(&e);
-    let updater = Address::generate(&e);
-
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
         let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
         set_commitment(&e, &commitment);
         e.storage()
@@ -1291,73 +1267,11 @@ fn test_update_value_triggers_violation() {
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.update_value(&updater, &String::from_str(&e, "test_id"), &850);
+    client.update_value(&String::from_str(&e, "test_id"), &850);
 
     let updated = client.get_commitment(&String::from_str(&e, "test_id"));
     assert_eq!(updated.current_value, 850);
-    assert_eq!(updated.status, String::from_str(&e, "violated"));
+    assert_eq!(updated.status, String::from_str(&e, "active"));
+    assert!(client.check_violations(&String::from_str(&e, "test_id")));
 }
 
-#[test]
-fn test_add_and_get_authorized_updaters() {
-    let e = Env::default();
-    e.mock_all_auths();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    let updater1 = Address::generate(&e);
-    let updater2 = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-    });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.add_updater(&admin, &updater1);
-    client.add_updater(&admin, &updater2);
-
-    let updaters = client.get_authorized_updaters();
-    assert_eq!(updaters.len(), 2);
-    assert!(updaters.contains(&updater1));
-    assert!(updaters.contains(&updater2));
-}
-
-#[test]
-fn test_remove_authorized_updater() {
-    let e = Env::default();
-    e.mock_all_auths();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    let updater = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-    });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.add_updater(&admin, &updater);
-    client.remove_updater(&admin, &updater);
-
-    let updaters = client.get_authorized_updaters();
-    assert_eq!(updaters.len(), 0);
-}
-
-#[test]
-#[should_panic(expected = "Unauthorized: caller not allowed")]
-fn test_add_updater_non_admin_fails() {
-    let e = Env::default();
-    e.mock_all_auths();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    let non_admin = Address::generate(&e);
-    let updater = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-    });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.add_updater(&non_admin, &updater);
-}
