@@ -1,11 +1,9 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, symbol_short, Address, BytesN, Env, String, Vec, Symbol};
-use shared_utils::{EmergencyControl, Pausable};
-use shared_utils::{EmergencyControl, Pausable};
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
     String, Symbol, Vec,
 };
+use shared_utils::{EmergencyControl, Pausable};
 
 /// Current storage/contract version for migrations
 const CURRENT_VERSION: u32 = 1;
@@ -123,8 +121,6 @@ pub enum DataKey {
     /// Contract version
     Version,
 }
-
-const CURRENT_VERSION: u32 = 1;
 
 #[cfg(test)]
 mod tests;
