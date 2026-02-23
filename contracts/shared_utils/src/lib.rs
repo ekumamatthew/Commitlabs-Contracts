@@ -14,13 +14,14 @@
 //! - Rate limiting helpers
 
 pub mod access_control;
+pub mod batch;
 pub mod emergency;
 pub mod error_codes;
 pub mod errors;
 pub mod events;
 pub mod math;
-pub mod rate_limiting;
 pub mod pausable;
+pub mod rate_limiting;
 pub mod storage;
 pub mod time;
 pub mod validation;
@@ -30,13 +31,21 @@ mod tests;
 
 // Re-export commonly used items
 pub use access_control::*;
+pub use batch::*;
 pub use emergency::EmergencyControl;
 pub use error_codes::*;
 pub use errors::*;
 pub use events::*;
 pub use math::*;
-pub use rate_limiting::*;
 pub use pausable::*;
 pub use storage::Storage;
 pub use time::TimeUtils;
 pub use validation::Validation;
+pub use rate_limiting::*;
+pub use rate_limiting::*;
+pub use storage::*;
+pub use storage::*;
+pub use time::*;
+pub use time::*;
+pub use validation::*;
+pub use validation::*;
