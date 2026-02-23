@@ -135,7 +135,6 @@ pub struct Commitment {
     pub status: String, // "active", "settled", "violated", "early_exit"
 }
 
-// Import Commitment types from commitment_core (define locally for cross-contract calls)
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -712,8 +711,8 @@ impl AttestationEngineContract {
         let attestation = Attestation {
             commitment_id: commitment_id.clone(),
             attestation_type: attestation_type.clone(),
-            data,
-            timestamp: e.ledger().timestamp(),
+            data: data.clone(),
+            timestamp,
             verified_by: caller.clone(),
             is_compliant,
         };
@@ -730,7 +729,7 @@ impl AttestationEngineContract {
             .unwrap_or_else(|| Vec::new(&e));
 
         // Add new attestation
-        attestations.push_back(attestation);
+        attestations.push_back(attestation.clone());
 
         // Store updated list
         e.storage().persistent().set(&key, &attestations);
@@ -1047,33 +1046,9 @@ impl AttestationEngineContract {
             Self::i128_to_string(&e, max_loss),
         );
 
-        // Create drawdown attestation
-        let drawdown_attestation = Attestation {
-            commitment_id: commitment_id.clone(),
-            attestation_type: String::from_str(&e, "drawdown"),
-            data,
-            timestamp: e.ledger().timestamp(),
-            verified_by: caller.clone(),
-            is_compliant,
-        };
-
-        // Store drawdown attestation
-        let atts_key = (symbol_short!("ATTS"), commitment_id.clone());
-        let mut attestations: Vec<Attestation> = e
-            .storage()
-            .persistent()
-            .get(&atts_key)
-            .unwrap_or_else(|| Vec::new(&e));
-        attestations.push_back(drawdown_attestation);
-        e.storage().persistent().set(&atts_key, &attestations);
-
-        // Emit DrawdownRecorded event
-        e.events().publish(
-            (Symbol::new(&e, "DrawdownRecorded"), commitment_id),
-            (drawdown_percent, is_compliant, e.ledger().timestamp()),
-        );
-
-        Ok(())
+        // Delegate to attest with drawdown type
+        let attestation_type = String::from_str(&e, "drawdown");
+        Self::attest(e, caller, commitment_id, attestation_type, data, is_compliant)
     }
 
     /// Convert i128 to String (helper function)

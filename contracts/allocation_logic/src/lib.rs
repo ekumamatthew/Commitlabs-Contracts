@@ -7,6 +7,8 @@ use soroban_sdk::{
     Symbol, Vec,
 };
 
+const CURRENT_VERSION: u32 = 1;
+
 // ============================================================================
 // ERROR CODES - Error Handling
 // ============================================================================
@@ -31,8 +33,6 @@ pub enum Error {
     InvalidVersion = 16,
     AlreadyMigrated = 17,
 }
-
-const CURRENT_VERSION: u32 = 1;
 
 // ============================================================================
 // DATA STRUCTURES

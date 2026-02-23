@@ -5,7 +5,6 @@ use soroban_sdk::{
     String, Symbol, Vec,
 };
 
-/// Current storage/contract version for migrations
 const CURRENT_VERSION: u32 = 1;
 
 // ============================================================================
@@ -482,9 +481,30 @@ impl CommitmentNFTContract {
 
     /// Transfer NFT to new owner
     ///
+    /// # Edge Cases and Validation
+    /// This function enforces strict validation to prevent ambiguous or unsafe states:
+    ///
+    /// - **Self-Transfer Rejection**: `transfer(from, to, token_id)` where `from == to` returns
+    ///   `TransferToZeroAddress` error (#18). This prevents accidental no-ops and ambiguous state.
+    ///
+    /// - **Invalid Address Check**: Soroban SDK validates address format at compile time, preventing
+    ///   completely malformed addresses. The SDK's Address type is guaranteed to be valid.
+    ///
+    /// - **Ownership Validation**: Returns `NotOwner` error (#5) if `from` is not the current owner.
+    ///   This ensures only the current owner can initiate transfers.
+    ///
+    /// - **Lock Status Check**: Returns `NFTLocked` error (#19) if the NFT has an active commitment.
+    ///   Only settled/inactive NFTs can be transferred to prevent commitment state conflicts.
+    ///
+    /// - **Token Existence**: Returns `TokenNotFound` error (#3) if the token does not exist.
+    ///
     /// # Reentrancy Protection
     /// Uses checks-effects-interactions pattern. This function only writes to storage
     /// and doesn't make external calls, but still protected for consistency.
+    ///
+    /// # Authorization
+    /// Requires authorization from the `from` address via `from.require_auth()`.
+    /// Contract must not be paused and not in emergency mode.
     pub fn transfer(
         e: Env,
         from: Address,
