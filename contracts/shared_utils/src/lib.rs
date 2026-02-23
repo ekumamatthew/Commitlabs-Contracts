@@ -29,16 +29,19 @@ pub mod validation;
 #[cfg(test)]
 mod tests;
 
-// Re-export commonly used items (no duplicate or wildcard+explicit clash)
-pub use access_control::*;
-pub use batch::*;
+// Re-export commonly used items (explicit only to avoid E0252 glob clashes)
+pub use access_control::AccessControl;
+pub use batch::{
+    BatchConfig, BatchDataKey, BatchError, BatchMode, BatchOperationReport, BatchProcessor,
+    BatchResultString, BatchResultVoid, DetailedBatchError, RollbackHelper, StateSnapshot,
+};
 pub use emergency::EmergencyControl;
-pub use error_codes::*;
-pub use errors::*;
-pub use events::*;
-pub use math::*;
-pub use pausable::*;
-pub use rate_limiting::*;
+pub use error_codes::{category, code, emit_error_event, message_for_code};
+pub use errors::ErrorHelper;
+pub use events::Events;
+pub use math::SafeMath;
+pub use pausable::Pausable;
+pub use rate_limiting::RateLimiter;
 pub use storage::Storage;
 pub use time::TimeUtils;
 pub use validation::Validation;
