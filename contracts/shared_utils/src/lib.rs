@@ -29,7 +29,7 @@ pub mod validation;
 #[cfg(test)]
 mod tests;
 
-// Re-export commonly used items
+// Re-export commonly used items (no duplicate or wildcard+explicit clash)
 pub use access_control::*;
 pub use batch::*;
 pub use emergency::EmergencyControl;
@@ -38,14 +38,7 @@ pub use errors::*;
 pub use events::*;
 pub use math::*;
 pub use pausable::*;
+pub use rate_limiting::*;
 pub use storage::Storage;
 pub use time::TimeUtils;
 pub use validation::Validation;
-pub use rate_limiting::*;
-pub use rate_limiting::*;
-pub use storage::*;
-pub use storage::*;
-pub use time::*;
-pub use time::*;
-pub use validation::*;
-pub use validation::*;
