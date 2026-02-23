@@ -981,11 +981,6 @@ impl CommitmentCoreContract {
         target_pool: Address,
         amount: i128,
     ) {
-    /// Allocate liquidity (called by allocation strategy)
-    ///
-    /// # Reentrancy Protection
-    /// Uses checks-effects-interactions pattern with reentrancy guard.
-    pub fn allocate(e: Env, commitment_id: String, target_pool: Address, amount: i128) {
         // Reentrancy protection
         require_no_reentrancy(&e);
         set_reentrancy_guard(&e, true);
