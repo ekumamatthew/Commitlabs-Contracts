@@ -50,7 +50,7 @@ impl Pausable {
     ///
     /// # Panics
     /// Panics if contract is already unpaused
-    pub fn unpause(e: &Env) {
+    pub fn unpause(e: &Env) { 
         if !Self::is_paused(e) {
             panic!("Contract is already unpaused");
         }

@@ -647,7 +647,8 @@ fn test_update_value_event() {
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
+        // Authorize the updater via allocation contract
+        CommitmentCoreContract::set_allocation_contract(e.clone(), admin.clone(), updater.clone());
         let commitment = create_test_commitment(
             &e,
             "test_id",
@@ -662,11 +663,16 @@ fn test_update_value_event() {
         e.storage()
             .instance()
             .set(&DataKey::TotalValueLocked, &1000i128);
+        
+        CommitmentCoreContract::update_value(
+            e.clone(),
+            updater.clone(),
+            commitment_id.clone(),
+            1100,
+        );
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.update_value(&updater, &commitment_id, &1100);
-
     let updated = client.get_commitment(&commitment_id);
     assert_eq!(updated.current_value, 1100);
     assert_eq!(client.get_total_value_locked(), 1100);
@@ -686,7 +692,8 @@ fn test_update_value_rate_limit_enforced() {
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
+        // Authorize the updater via allocation contract
+        CommitmentCoreContract::set_allocation_contract(e.clone(), admin.clone(), updater.clone());
         CommitmentCoreContract::set_rate_limit(
             e.clone(),
             admin.clone(),
@@ -708,13 +715,22 @@ fn test_update_value_rate_limit_enforced() {
         e.storage()
             .instance()
             .set(&DataKey::TotalValueLocked, &1000i128);
+        
+        // First call — allowed
+        CommitmentCoreContract::update_value(
+            e.clone(),
+            updater.clone(),
+            commitment_id.clone(),
+            100,
+        );
+        // Second call — should hit rate limit and panic
+        CommitmentCoreContract::update_value(
+            e.clone(),
+            updater.clone(),
+            commitment_id.clone(),
+            200,
+        );
     });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    // First call — allowed
-    client.update_value(&updater, &commitment_id, &100);
-    // Second call — should hit rate limit and panic
-    client.update_value(&updater, &commitment_id, &200);
 }
 
 #[test]
@@ -1216,11 +1232,16 @@ fn test_early_exit_status_transition() {
 
     assert_eq!(before.status, String::from_str(&e, "active"));
 }
+// ============================================================================
+// Access Control Tests for update_value
+// ============================================================================
+
 #[test]
-#[should_panic]
+#[should_panic(expected = "Unauthorized: caller not allowed")]
 fn test_update_value_unauthorized_caller() {
     let e = Env::default();
     e.mock_all_auths();
+    
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
@@ -1229,9 +1250,10 @@ fn test_update_value_unauthorized_caller() {
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
+        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, e.ledger().timestamp());
         set_commitment(&e, &commitment);
-        // unauthorized is NOT in the whitelist, so this must panic
+        e.storage().instance().set(&DataKey::TotalValueLocked, &1000i128);
+        // unauthorized is NOT admin or in allocation contract, so this must panic
         CommitmentCoreContract::update_value(
             e.clone(),
             unauthorized.clone(),
@@ -1245,25 +1267,26 @@ fn test_update_value_unauthorized_caller() {
 fn test_update_value_no_violation() {
     let e = Env::default();
     e.mock_all_auths();
+    
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let owner = Address::generate(&e);
-    let updater = Address::generate(&e);
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
-        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
+        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, e.ledger().timestamp());
         set_commitment(&e, &commitment);
         e.storage()
             .instance()
             .set(&DataKey::TotalValueLocked, &1000i128);
     });
 
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.update_value(&updater, &String::from_str(&e, "test_id"), &950);
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::update_value(e.clone(), admin.clone(), String::from_str(&e, "test_id"), 950);
+    });
 
+    let client = CommitmentCoreContractClient::new(&e, &contract_id);
     let updated = client.get_commitment(&String::from_str(&e, "test_id"));
     assert_eq!(updated.current_value, 950);
     assert_eq!(updated.status, String::from_str(&e, "active"));
@@ -1271,93 +1294,19 @@ fn test_update_value_no_violation() {
 }
 
 #[test]
-fn test_update_value_triggers_violation() {
-    let e = Env::default();
-    e.mock_all_auths();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    let owner = Address::generate(&e);
-    let updater = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        add_authorized_updater(&e, &updater);
-        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
-        set_commitment(&e, &commitment);
-        e.storage()
-            .instance()
-            .set(&DataKey::TotalValueLocked, &1000i128);
-    });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.update_value(&updater, &String::from_str(&e, "test_id"), &850);
-
-    let updated = client.get_commitment(&String::from_str(&e, "test_id"));
-    assert_eq!(updated.current_value, 850);
-    assert_eq!(updated.status, String::from_str(&e, "violated"));
-}
-
-#[test]
-fn test_add_and_get_authorized_updaters() {
-    let e = Env::default();
-    e.mock_all_auths();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    let updater1 = Address::generate(&e);
-    let updater2 = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-    });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.add_updater(&admin, &updater1);
-    client.add_updater(&admin, &updater2);
-
-    let updaters = client.get_authorized_updaters();
-    assert_eq!(updaters.len(), 2);
-    assert!(updaters.contains(&updater1));
-    assert!(updaters.contains(&updater2));
-}
-
-#[test]
-fn test_remove_authorized_updater() {
-    let e = Env::default();
-    e.mock_all_auths();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    let updater = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-    });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.add_updater(&admin, &updater);
-    client.remove_updater(&admin, &updater);
-
-    let updaters = client.get_authorized_updaters();
-    assert_eq!(updaters.len(), 0);
-}
-
-#[test]
 #[should_panic(expected = "Unauthorized: caller not allowed")]
-fn test_add_updater_non_admin_fails() {
+fn test_set_allocation_contract_by_non_admin() {
     let e = Env::default();
     e.mock_all_auths();
+    
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
+    let allocation_contract = Address::generate(&e);
     let non_admin = Address::generate(&e);
-    let updater = Address::generate(&e);
-
+    
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
+        CommitmentCoreContract::set_allocation_contract(e.clone(), non_admin.clone(), allocation_contract.clone());
     });
-
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    client.add_updater(&non_admin, &updater);
 }

@@ -103,6 +103,7 @@ pub struct Commitment {
 pub enum DataKey {
     Admin,
     NftContract,
+    AllocationContract,        // authorized allocation logic contract
     Commitment(String),        // commitment_id -> Commitment
     OwnerCommitments(Address), // owner -> Vec<commitment_id>
     TotalCommitments,          // counter
@@ -563,10 +564,50 @@ impl CommitmentCoreContract {
             .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "get_nft_contract"))
     }
 
+    /// Set allocation contract address (only admin can call)
+    pub fn set_allocation_contract(e: Env, caller: Address, allocation_contract: Address) {
+        require_admin(&e, &caller);
+        e.storage()
+            .instance()
+            .set(&DataKey::AllocationContract, &allocation_contract);
+    }
+
+    /// Get allocation contract address
+    pub fn get_allocation_contract(e: Env) -> Option<Address> {
+        e.storage()
+            .instance()
+            .get::<_, Address>(&DataKey::AllocationContract)
+    }
+
     /// Update commitment value (called by allocation logic or oracle-fed keeper).
     /// Persists new_value to commitment.current_value and updates TotalValueLocked.
+    /// 
+    /// # Access Control
+    /// Only the admin or authorized allocation contract can call this function.
     pub fn update_value(e: Env, caller: Address, commitment_id: String, new_value: i128) {
-        require_authorized_updater(&e, &caller);
+        // Access control: only admin or authorized allocation contract can update value
+        let admin = e
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Admin)
+            .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "update_value"));
+        
+        let allocation_contract = e
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::AllocationContract);
+        
+        let is_authorized = caller == admin || 
+            (allocation_contract.is_some() && caller == allocation_contract.unwrap());
+        
+        if !is_authorized {
+            fail(&e, CommitmentError::Unauthorized, "update_value");
+        }
+
+        // Global per-function rate limit (per contract instance)
+        let fn_symbol = symbol_short!("upd_val");
+        let contract_address = e.current_contract_address();
+        RateLimiter::check(&e, &contract_address, &fn_symbol);
 
         Validation::require_non_negative(new_value);
 
