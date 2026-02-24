@@ -1580,3 +1580,35 @@ fn test_create_commitment_requires_positive_amount() {
     client.create_commitment(&owner, &0i128, &token_address, &rules);
 }
 
+// ============================================
+// Issue #140: Zero Address Validation
+// ============================================
+
+#[test]
+#[should_panic(expected = "Zero address is not allowed")]
+fn test_create_commitment_zero_address_fails() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let client = CommitmentCoreContractClient::new(&e, &contract_id);
+
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+    
+    client.initialize(&admin, &nft_contract);
+
+    let zero_address = Address::from_string(&String::from_str(&e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"));
+    
+    let rules = CommitmentRules {
+        duration_days: 30,
+        max_loss_percent: 10,
+        commitment_type: String::from_str(&e, "safe"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 100,
+        grace_period_days: 0,
+    };
+
+    client.create_commitment(&zero_address, &1000i128, &asset_address, &rules);
+}

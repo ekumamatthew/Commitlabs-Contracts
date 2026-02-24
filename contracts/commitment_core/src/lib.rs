@@ -28,6 +28,7 @@ pub enum CommitmentError {
     NotExpired = 16,
     ValueUpdateViolation = 17,
     NotAuthorizedUpdater = 18,
+    ZeroAddress = 19, 
 }
 
 impl CommitmentError {
@@ -52,6 +53,7 @@ impl CommitmentError {
             CommitmentError::NotExpired => "Commitment has not expired yet",
             CommitmentError::ValueUpdateViolation => "Commitment has  value update voilation",
             CommitmentError::NotAuthorizedUpdater => "Commitment has not auth updater",
+            CommitmentError::ZeroAddress => "Zero address is not allowed",
         }
     }
 }
@@ -131,6 +133,13 @@ pub enum DataKey {
 
 /// Check if owner has sufficient balance without transferring.
 /// Must be called in CHECKS phase before any state modifications.
+
+
+fn is_zero_address(e: &Env, address: &Address) -> bool {
+    let zero_str = String::from_str(e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
+    address.to_string() == zero_str
+}
+
 fn check_sufficient_balance(
     e: &Env,
     owner: &Address,
@@ -438,6 +447,11 @@ impl CommitmentCoreContract {
 
         // Rate limit: per-owner commitment creation
         let fn_symbol = symbol_short!("create");
+        // Reject zero address owner
+        if is_zero_address(&e, &owner) {
+            set_reentrancy_guard(&e, false);
+            fail(&e, CommitmentError::ZeroAddress, "create_commitment");
+        }
         RateLimiter::check(&e, &owner, &fn_symbol);
 
         // Validate amount > 0 using shared utilities

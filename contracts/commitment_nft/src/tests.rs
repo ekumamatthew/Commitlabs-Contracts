@@ -98,7 +98,7 @@ fn mint_to_owner(
     client.mint(
         owner,
         &String::from_str(e, label),
-        &1, // 1 day duration — easy to settle
+        &1, // 1 day duration ΓÇö easy to settle
         &10,
         &String::from_str(e, "balanced"),
         &1000,
@@ -1013,10 +1013,10 @@ fn test_transfer_after_settlement() {
 // ============================================
 
 /// Test that self-transfer (from == to) is rejected with TransferToZeroAddress error.
-/// 
+///
 /// **Requirement**: RFC #105 - Transfer should reject transfer to self to avoid ambiguous state.
 ///
-/// **Expected Behavior**: 
+/// **Expected Behavior**:
 /// - transfer(owner, owner, token_id) must fail with error #18 (TransferToZeroAddress)
 /// - No state changes should occur
 /// - Useful for preventing accidental no-ops
@@ -1102,7 +1102,7 @@ fn test_transfer_edge_case_from_non_owner() {
 ///
 /// **Requirement**: RFC #105 - Transfer should reject zero/invalid addresses.
 ///
-/// **Expected Behavior**: 
+/// **Expected Behavior**:
 /// - Soroban SDK prevents creation of completely malformed addresses at compile time
 /// - The Address type in Soroban is guaranteed to represent a valid address
 /// - This test serves as defensive documentation of SDK safety guarantees
@@ -1139,10 +1139,10 @@ fn test_transfer_edge_case_address_validation_by_sdk() {
     // The Address type in Soroban SDK is strongly typed and cannot be constructed
     // with invalid/zero values. This test documents that SDK guarantees prevent
     // the invalid address case from ever reaching our contract code.
-    
+
     // To demonstrate this, we use a validly generated address
     assert_eq!(client.owner_of(&token_id), owner);
-    
+
     // If we could construct a zero address, it would be rejected by the contract,
     // but Soroban SDK prevents this at the type level, making the check redundant
     // at runtime. This is a safety guarantee of the SDK.
@@ -1385,7 +1385,7 @@ fn test_settle_by_random_address_fails() {
     e.ledger().with_mut(|li| {
         li.timestamp = 172800;
     });
-    // Call settle with a random address (not core or admin) — expect NotAuthorized
+    // Call settle with a random address (not core or admin) ΓÇö expect NotAuthorized
     let random_address = Address::generate(&e);
     client.settle(&random_address, &token_id);
 }
@@ -1644,7 +1644,7 @@ fn test_mint_duration_days_max() {
     assert_eq!(token_id, 0);
     let nft = client.get_metadata(&token_id);
     assert_eq!(nft.metadata.duration_days, u32::MAX);
-    
+
     // Verify expires_at calculation handles large values
     // created_at + (u32::MAX * 86400) should not panic
     let expected_expires_at = nft.metadata.created_at + (u32::MAX as u64 * 86400);
@@ -1950,7 +1950,7 @@ fn test_invariant_supply_unchanged_after_settle() {
         li.timestamp = 172800; // 2 days
     });
 
-    // Settle each — supply and balance must not change
+    // Settle each ΓÇö supply and balance must not change
     for token_id in [t0, t1, t2] {
         e.as_contract(&core_id, || {
             client.settle(&core_id, &token_id);
@@ -2176,4 +2176,65 @@ fn test_invariant_transfer_chain_preserves_supply() {
     assert_balance_supply_invariant(&client, &owners);
     assert_eq!(client.balance_of(&c), 0);
     assert_eq!(client.balance_of(&d), 1);
+}
+
+// ============================================
+// Issue #140: Zero Address Tests
+// ============================================
+
+#[test]
+#[should_panic(expected = "Error(Contract, #18)")] // TransferToZeroAddress
+fn test_mint_to_zero_address_fails() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let (admin, client) = setup_contract(&e);
+    client.initialize(&admin);
+
+    let zero_address = Address::from_string(&String::from_str(&e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"));
+    let asset = Address::generate(&e);
+
+    client.mint(
+        &zero_address,
+        &String::from_str(&e, "c_123"),
+        &30,
+        &10,
+        &String::from_str(&e, "safe"),
+        &1000,
+        &asset,
+        &100
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #18)")] // TransferToZeroAddress
+fn test_transfer_to_zero_address_fails() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let (_admin, client, core_id) = setup_contract_with_core(&e);
+
+    let owner = Address::generate(&e);
+    let asset = Address::generate(&e);
+    
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "c_123"),
+        &1,
+        &10,
+        &String::from_str(&e, "safe"),
+        &1000,
+        &asset,
+        &100
+    );
+
+    // Fast forward and settle so it can be transferred
+    e.ledger().with_mut(|li| {
+        li.timestamp = 172800;
+    });
+    e.as_contract(&core_id, || {
+        client.settle(&core_id, &token_id);
+    });
+
+    let zero_address = Address::from_string(&String::from_str(&e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"));
+    
+    client.transfer(&owner, &zero_address, &token_id);
 }
