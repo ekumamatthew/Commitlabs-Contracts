@@ -261,6 +261,22 @@ fn remove_authorized_updater(e: &Env, updater: &Address) {
     }
 }
 
+/// Remove a commitment from an owner's commitment list
+fn remove_from_owner_commitments(e: &Env, owner: &Address, commitment_id: &String) {
+    let mut owner_commitments: Vec<String> = e
+        .storage()
+        .instance()
+        .get::<_, Vec<String>>(&DataKey::OwnerCommitments(owner.clone()))
+        .unwrap_or(Vec::new(e));
+    
+    if let Some(idx) = owner_commitments.iter().position(|id| id == *commitment_id) {
+        owner_commitments.remove(idx as u32);
+        e.storage()
+            .instance()
+            .set(&DataKey::OwnerCommitments(owner.clone()), &owner_commitments);
+    }
+}
+
 // ─── Pause helpers (free functions used by the contract impl) ─────────────────
 
 /// Pause the contract. Caller must be admin.
