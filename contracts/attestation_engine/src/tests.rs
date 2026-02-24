@@ -351,7 +351,7 @@ fn test_verify_compliance() {
 
 #[test]
 fn test_initialize() {
-    let (e, admin, commitment_core, contract_id) = setup_test_env();
+    let (e, _admin, _commitment_core, contract_id) = setup_test_env();
 
     // Verify initialization by checking that we can call other functions
     // (indirect verification through storage access)
@@ -582,6 +582,418 @@ fn test_get_health_metrics_includes_compliance_score() {
 
     // Verify compliance_score is included and valid
     assert!(metrics.compliance_score <= 100);
+}
+
+// ============================================================================
+// Comprehensive Compliance Score Algorithm Tests
+// ============================================================================
+
+#[test]
+fn test_compliance_score_no_attestations_default() {
+    let (e, _admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        1000,
+        10,
+        30,
+        5000,
+    );
+
+    let score = e.as_contract(&contract_id, || {
+        AttestationEngineContract::calculate_compliance_score(e.clone(), commitment_id)
+    });
+
+    // Base score is 100, +10 for duration adherence = 110, clamped to 100
+    assert_eq!(score, 100);
+}
+
+#[test]
+fn test_compliance_score_only_positive_attestations() {
+    let (e, admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        1000,
+        10,
+        30,
+        5000,
+    );
+
+    // Add health_check attestation
+    let mut data = Map::new(&e);
+    data.set(String::from_str(&e, "status"), String::from_str(&e, "healthy"));
+    
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "health_check"),
+            data,
+            true,
+        )
+        .unwrap();
+    });
+
+    let score = e.as_contract(&contract_id, || {
+        AttestationEngineContract::calculate_compliance_score(e.clone(), commitment_id)
+    });
+
+    // Should be at or near 100
+    assert_eq!(score, 100);
+}
+
+#[test]
+fn test_compliance_score_with_single_violation() {
+    let (e, admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        1000,
+        10,
+        30,
+        5000,
+    );
+
+    // Add violation
+    let mut data = Map::new(&e);
+    data.set(String::from_str(&e, "violation_type"), String::from_str(&e, "rule_breach"));
+    data.set(String::from_str(&e, "severity"), String::from_str(&e, "medium"));
+    
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "violation"),
+            data,
+            false,
+        )
+        .unwrap();
+    });
+
+    let metrics = e.as_contract(&contract_id, || {
+        AttestationEngineContract::get_stored_health_metrics(e.clone(), commitment_id)
+    });
+
+    // Base 100 - 20 (medium violation) = 80
+    assert_eq!(metrics.unwrap().compliance_score, 80);
+}
+
+#[test]
+fn test_compliance_score_with_multiple_violations() {
+    let (e, admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        1000,
+        10,
+        30,
+        5000,
+    );
+
+    // Add first violation
+    let mut data1 = Map::new(&e);
+    data1.set(String::from_str(&e, "violation_type"), String::from_str(&e, "minor_breach"));
+    data1.set(String::from_str(&e, "severity"), String::from_str(&e, "low"));
+    
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "violation"),
+            data1,
+            false,
+        )
+        .unwrap();
+    });
+
+    // Add second violation
+    let mut data2 = Map::new(&e);
+    data2.set(String::from_str(&e, "violation_type"), String::from_str(&e, "rule_breach"));
+    data2.set(String::from_str(&e, "severity"), String::from_str(&e, "medium"));
+    
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "violation"),
+            data2,
+            false,
+        )
+        .unwrap();
+    });
+
+    let metrics = e.as_contract(&contract_id, || {
+        AttestationEngineContract::get_stored_health_metrics(e.clone(), commitment_id)
+    });
+
+    // Base 100 - 10 (low) - 20 (medium) = 70
+    assert_eq!(metrics.unwrap().compliance_score, 70);
+}
+
+#[test]
+fn test_compliance_score_with_drawdown_penalty() {
+    let (e, _admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    // Initial: 1000, Current: 700 = 30% drawdown, max_loss: 10% → 20% over threshold
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        700,
+        10,
+        30,
+        5000,
+    );
+
+    let score = e.as_contract(&contract_id, || {
+        AttestationEngineContract::calculate_compliance_score(e.clone(), commitment_id)
+    });
+
+    // Base 100 + 10 (duration) - 20 (drawdown penalty) = 90
+    assert_eq!(score, 90);
+}
+
+#[test]
+fn test_compliance_score_with_fees_and_drawdown() {
+    let (e, admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    // 15% drawdown (5% over 10% threshold)
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        850,
+        10,
+        30,
+        5000,
+    );
+
+    // Add fee_generation attestation
+    let mut data = Map::new(&e);
+    data.set(String::from_str(&e, "fee_amount"), String::from_str(&e, "500"));
+    
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "fee_generation"),
+            data,
+            true,
+        )
+        .unwrap();
+    });
+
+    let score = e.as_contract(&contract_id, || {
+        AttestationEngineContract::calculate_compliance_score(e.clone(), commitment_id)
+    });
+
+    // Base 100 + 10 (duration) - 5 (drawdown penalty) = 105, clamped to 100
+    // Note: fee bonus not applied in current implementation (total_fees = 0)
+    assert_eq!(score, 100);
+}
+
+#[test]
+fn test_compliance_score_clamped_at_zero() {
+    let (e, admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    // Massive drawdown: 90% (80% over 10% threshold)
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        100,
+        10,
+        30,
+        5000,
+    );
+
+    // Add multiple violations to drive score below 0
+    for _i in 0..5_u32 {
+        let mut data = Map::new(&e);
+        data.set(String::from_str(&e, "violation_type"), String::from_str(&e, "critical_breach"));
+        data.set(String::from_str(&e, "severity"), String::from_str(&e, "high"));
+        
+        e.as_contract(&contract_id, || {
+            AttestationEngineContract::attest(
+                e.clone(),
+                admin.clone(),
+                commitment_id.clone(),
+                String::from_str(&e, "violation"),
+                data,
+                false,
+            )
+            .unwrap();
+        });
+    }
+
+    let metrics = e.as_contract(&contract_id, || {
+        AttestationEngineContract::get_stored_health_metrics(e.clone(), commitment_id)
+    });
+
+    // Base 100 - 150 (5 high violations at 30 each) = 0 (clamped)
+    assert_eq!(metrics.unwrap().compliance_score, 0);
+}
+
+#[test]
+fn test_compliance_score_clamped_at_100() {
+    let (e, _admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    // Perfect conditions: no drawdown, within duration
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        1100, // Gained value
+        10,
+        30,
+        5000,
+    );
+
+    let score = e.as_contract(&contract_id, || {
+        AttestationEngineContract::calculate_compliance_score(e.clone(), commitment_id)
+    });
+
+    // Base 100 + 10 (duration) = 110, clamped to 100
+    assert_eq!(score, 100);
+}
+
+#[test]
+fn test_compliance_score_mixed_attestations() {
+    let (e, admin, _commitment_core, contract_id) = setup_test_env();
+    e.ledger().with_mut(|li| li.timestamp = 10000);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    // 12% drawdown (2% over threshold)
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        880,
+        10,
+        30,
+        5000,
+    );
+
+    // Add health_check
+    let mut health_data = Map::new(&e);
+    health_data.set(String::from_str(&e, "status"), String::from_str(&e, "healthy"));
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "health_check"),
+            health_data,
+            true,
+        )
+        .unwrap();
+    });
+
+    // Add violation
+    let mut violation_data = Map::new(&e);
+    violation_data.set(String::from_str(&e, "violation_type"), String::from_str(&e, "minor_breach"));
+    violation_data.set(String::from_str(&e, "severity"), String::from_str(&e, "low"));
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "violation"),
+            violation_data,
+            false,
+        )
+        .unwrap();
+    });
+
+    // Add drawdown attestation
+    let mut drawdown_data = Map::new(&e);
+    drawdown_data.set(String::from_str(&e, "drawdown_percent"), String::from_str(&e, "12"));
+    e.as_contract(&contract_id, || {
+        AttestationEngineContract::attest(
+            e.clone(),
+            admin.clone(),
+            commitment_id.clone(),
+            String::from_str(&e, "drawdown"),
+            drawdown_data,
+            true,
+        )
+        .unwrap();
+    });
+
+    let metrics = e.as_contract(&contract_id, || {
+        AttestationEngineContract::get_stored_health_metrics(e.clone(), commitment_id)
+    });
+
+    // Base 100 + 1 (health_check, clamped at 100) - 10 (low violation) + 1 (drawdown attestation) = 91
+    // Note: drawdown penalty from commitment value is NOT applied in stored metrics,
+    // only in calculate_compliance_score
+    assert_eq!(metrics.unwrap().compliance_score, 91);
 }
 
 #[test]
