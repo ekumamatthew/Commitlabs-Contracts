@@ -31,18 +31,20 @@ jobs:
 
       - name: Install Stellar CLI via Homebrew
         run: |
-          brew install stellar/tap/stellar-cli || brew install stellar || echo "Stellar CLI installation skipped"
-        continue-on-error: true
+          brew tap stellar/tap || true
+          brew install stellar-cli || brew install stellar
 
       - name: Verify Stellar CLI installation
         run: |
           if command -v stellar &> /dev/null; then
+            echo "✓ Stellar CLI found"
             stellar --version
-          fi
-          if command -v soroban &> /dev/null; then
+          elif command -v soroban &> /dev/null; then
+            echo "✓ Soroban CLI found"
             soroban --version
           else
-            echo "Note: soroban command not found, using stellar CLI"
+            echo "Error: Neither stellar nor soroban CLI found after installation"
+            exit 1
           fi
 
       - name: Cache Cargo dependencies
