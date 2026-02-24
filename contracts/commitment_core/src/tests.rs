@@ -177,6 +177,191 @@ fn test_validate_rules_invalid_type() {
     });
 }
 
+// ============================================
+// create_commitment Validation Tests - Issue #113
+// ============================================
+
+#[test]
+#[should_panic(expected = "Invalid duration")]
+fn test_create_commitment_duration_zero() {
+    let e = Env::default();
+    e.mock_all_auths();
+    
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    let rules = CommitmentRules {
+        duration_days: 0, // Invalid
+        max_loss_percent: 10,
+        commitment_type: String::from_str(&e, "safe"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 100,
+        grace_period_days: 0,
+    };
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::create_commitment(e.clone(), owner, 1000, asset_address, rules);
+    });
+}
+
+#[test]
+#[should_panic(expected = "Invalid percent")]
+fn test_create_commitment_max_loss_over_100() {
+    let e = Env::default();
+    e.mock_all_auths();
+    
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    let rules = CommitmentRules {
+        duration_days: 30,
+        max_loss_percent: 101, // Invalid
+        commitment_type: String::from_str(&e, "safe"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 100,
+        grace_period_days: 0,
+    };
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::create_commitment(e.clone(), owner, 1000, asset_address, rules);
+    });
+}
+
+#[test]
+#[should_panic(expected = "Invalid amount")]
+fn test_create_commitment_amount_zero() {
+    let e = Env::default();
+    e.mock_all_auths();
+    
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    let rules = CommitmentRules {
+            duration_days: 30,
+            max_loss_percent: 10,
+            commitment_type: String::from_str(&e, "safe"),
+            early_exit_penalty: 5,
+            min_fee_threshold: 100,
+            grace_period_days: 0,
+        };
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::create_commitment(e.clone(), owner, 0, asset_address, rules); // Invalid amount
+    });
+}
+
+#[test]
+#[should_panic(expected = "Invalid amount")]
+fn test_create_commitment_amount_negative() {
+    let e = Env::default();
+    e.mock_all_auths();
+    
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    let rules = CommitmentRules {
+            duration_days: 30,
+            max_loss_percent: 10,
+            commitment_type: String::from_str(&e, "safe"),
+            early_exit_penalty: 5,
+            min_fee_threshold: 100,
+            grace_period_days: 0,
+        };
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::create_commitment(e.clone(), owner, -100, asset_address, rules); // Invalid amount
+    });
+}
+
+#[test]
+#[should_panic(expected = "Invalid commitment type")]
+fn test_create_commitment_invalid_type() {
+    let e = Env::default();
+    e.mock_all_auths();
+    
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    let rules = CommitmentRules {
+        duration_days: 30,
+        max_loss_percent: 10,
+        commitment_type: String::from_str(&e, "invalid"), // Invalid type
+        early_exit_penalty: 5,
+        min_fee_threshold: 100,
+        grace_period_days: 0,
+    };
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::create_commitment(e.clone(), owner, 1000, asset_address, rules);
+    });
+}
+
+#[test]
+fn test_create_commitment_valid_rules() {
+    let e = Env::default();
+    e.mock_all_auths();
+    
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    let rules = CommitmentRules {
+            duration_days: 30,
+            max_loss_percent: 10,
+            commitment_type: String::from_str(&e, "safe"),
+            early_exit_penalty: 5,
+            min_fee_threshold: 100,
+            grace_period_days: 0,
+        };
+
+    // This will fail at NFT minting since we don't have a real NFT contract,
+    // but it validates that the rules validation passes
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::validate_rules(&e, &rules); // Should not panic
+    });
+}
+
 #[test]
 fn test_get_owner_commitments() {
     let e = Env::default();

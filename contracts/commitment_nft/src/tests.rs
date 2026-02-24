@@ -1454,6 +1454,134 @@ fn test_get_admin_not_initialized() {
 }
 
 // ============================================
+// Validation Tests - Issue #103
+// ============================================
+
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // InvalidMaxLoss
+fn test_mint_max_loss_percent_over_100() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &30,
+        &101, // max_loss_percent > 100
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+}
+
+#[test]
+fn test_mint_max_loss_percent_zero() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &30,
+        &0, // max_loss_percent = 0 (allowed)
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    assert_eq!(token_id, 0);
+    let nft = client.get_metadata(&token_id);
+    assert_eq!(nft.metadata.max_loss_percent, 0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")] // InvalidDuration
+fn test_mint_duration_days_zero() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &0, // duration_days = 0
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+}
+
+#[test]
+fn test_mint_duration_days_one() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &1, // duration_days = 1 (minimum valid)
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    assert_eq!(token_id, 0);
+    let nft = client.get_metadata(&token_id);
+    assert_eq!(nft.metadata.duration_days, 1);
+}
+
+#[test]
+fn test_mint_duration_days_max() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &u32::MAX, // duration_days = u32::MAX
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    assert_eq!(token_id, 0);
+    let nft = client.get_metadata(&token_id);
+    assert_eq!(nft.metadata.duration_days, u32::MAX);
+    
+    // Verify expires_at calculation handles large values
+    // created_at + (u32::MAX * 86400) should not panic
+    let expected_expires_at = nft.metadata.created_at + (u32::MAX as u64 * 86400);
+    assert_eq!(nft.metadata.expires_at, expected_expires_at);
+}
+
+// ============================================
 // Edge Cases
 // ============================================
 
