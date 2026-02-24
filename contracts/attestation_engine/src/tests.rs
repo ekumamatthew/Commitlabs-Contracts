@@ -2247,3 +2247,88 @@ fn test_calculate_compliance_score_event() {
     let event_data: (u32, u64) = last_event.2.into_val(&e);
     assert_eq!(event_data.0, 100);
 }
+
+#[test]
+fn test_get_health_metrics_no_attestations_returns_defaults() {
+    let (e, _admin, _commitment_core, contract_id) = setup_test_env();
+
+    let commitment_id = String::from_str(&e, "new_commitment");
+    let owner = Address::generate(&e);
+    
+    // Store a new commitment with no attestations
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "new_commitment",
+        &owner,
+        1000,
+        1000,
+        10,
+        30,
+        5000,
+    );
+
+    // Call get_health_metrics on commitment with no attestations
+    let metrics = e.as_contract(&contract_id, || {
+        AttestationEngineContract::get_health_metrics(e.clone(), commitment_id.clone())
+    });
+
+    // Verify sensible defaults are returned
+    assert_eq!(metrics.commitment_id, commitment_id);
+    assert_eq!(metrics.initial_value, 1000);
+    assert_eq!(metrics.current_value, 1000);
+    assert_eq!(metrics.drawdown_percent, 0);
+    assert_eq!(metrics.fees_generated, 0);
+    assert_eq!(metrics.volatility_exposure, 0);
+    assert_eq!(metrics.last_attestation, 0);
+    assert_eq!(metrics.compliance_score, 100);
+}
+
+#[test]
+fn test_get_health_metrics_updates_after_first_attestation() {
+    let (e, admin, _commitment_core, contract_id) = setup_test_env();
+    let client = AttestationEngineContractClient::new(&e, &contract_id);
+
+    let commitment_id = String::from_str(&e, "test_commitment");
+    let owner = Address::generate(&e);
+    
+    store_core_commitment(
+        &e,
+        &_commitment_core,
+        "test_commitment",
+        &owner,
+        1000,
+        1000,
+        10,
+        30,
+        5000,
+    );
+
+    // Get metrics before attestation
+    let metrics_before = e.as_contract(&contract_id, || {
+        AttestationEngineContract::get_health_metrics(e.clone(), commitment_id.clone())
+    });
+    assert_eq!(metrics_before.last_attestation, 0);
+
+    // Add first attestation
+    e.ledger().with_mut(|li| li.timestamp = 1000);
+    let mut data = Map::new(&e);
+    data.set(String::from_str(&e, "status"), String::from_str(&e, "healthy"));
+    
+    client.attest(
+        &admin,
+        &commitment_id,
+        &String::from_str(&e, "health_check"),
+        &data,
+        &true,
+    );
+
+    // Get metrics after attestation
+    let metrics_after = e.as_contract(&contract_id, || {
+        AttestationEngineContract::get_health_metrics(e.clone(), commitment_id.clone())
+    });
+    
+    // Verify metrics updated
+    assert_eq!(metrics_after.last_attestation, 1000);
+    assert_eq!(metrics_after.commitment_id, commitment_id);
+}
