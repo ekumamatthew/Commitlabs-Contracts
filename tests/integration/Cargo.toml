@@ -17,9 +17,9 @@ price_oracle = { path = "../../contracts/price_oracle" }
 
 [lib]
 crate-type = ["rlib"]
-path = "src/lib.rs"
+path = "lib.rs"
 doctest = false
 
 [[test]]
 name = "integration"
-path = "src/lib.rs"
+path = "lib.rs"
