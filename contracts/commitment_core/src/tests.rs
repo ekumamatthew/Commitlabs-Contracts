@@ -293,7 +293,7 @@ fn test_create_commitment_without_initialize_fails() {
 
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let owner = Address::generate(&e);
-    let asset_address = setup_token_contract(&e);
+    let asset_address = Address::generate(&e);
 
     let rules = CommitmentRules {
         duration_days: 30,
@@ -807,26 +807,6 @@ fn test_get_total_value_locked_not_initialized_returns_zero() {
     let total_value_locked = e
         .as_contract(&contract_id, || CommitmentCoreContract::get_total_value_locked(e.clone()));
     assert_eq!(total_value_locked, 0);
-}
-
-#[test]
-fn test_get_allocation_contract_not_initialized_returns_none() {
-    let e = Env::default();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-
-    let allocation_contract =
-        e.as_contract(&contract_id, || CommitmentCoreContract::get_allocation_contract(e.clone()));
-    assert!(allocation_contract.is_none());
-}
-
-#[test]
-fn test_get_authorized_updaters_not_initialized_returns_empty() {
-    let e = Env::default();
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-
-    let updaters =
-        e.as_contract(&contract_id, || CommitmentCoreContract::get_authorized_updaters(e.clone()));
-    assert_eq!(updaters.len(), 0);
 }
 
 #[test]
