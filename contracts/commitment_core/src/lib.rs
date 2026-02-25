@@ -122,16 +122,13 @@ pub enum DataKey {
 // compiler knows which IntoVal / TryFromVal impl to pick (Val, not AddressObject).
 
 fn is_zero_address(e: &Env, address: &Address) -> bool {
-    // 1. Create a native Soroban String
     let zero_str = String::from_str(e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
     
-    // 2. Parse it into an Address passing the environment `e` as the first argument!
-    let zero_addr = Address::from_string(e, &zero_str);
+    // Remove the `e, ` here! Just pass the string.
+    let zero_addr = Address::from_string(&zero_str);
     
-    // 3. Compare directly
     address == &zero_addr
 }
-
 /// Transfer assets from owner to contract
 fn transfer_assets(e: &Env, from: &Address, to: &Address, asset_address: &Address, amount: i128) {
     let token_client = token::Client::new(e, asset_address);
