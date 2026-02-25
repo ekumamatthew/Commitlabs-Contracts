@@ -2243,3 +2243,170 @@ fn test_invariant_transfer_chain_preserves_supply() {
     assert_eq!(client.balance_of(&c), 0);
     assert_eq!(client.balance_of(&d), 1);
 }
+
+// ============================================
+// Multiple NFTs Per Owner Tests
+// ============================================
+
+#[test]
+fn test_owner_multiple_nfts_balance() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let (_admin, client, _core_id) = setup_contract_with_core(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    // Mint 3 NFTs to the same owner
+    let _token1 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    let _token2 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_002"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &2000,
+        &asset_address,
+        &5,
+    );
+
+    let _token3 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_003"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &3000,
+        &asset_address,
+        &5,
+    );
+
+    // Verify balance_of returns 3
+    assert_eq!(client.balance_of(&owner), 3);
+    assert_eq!(client.total_supply(), 3);
+}
+
+#[test]
+fn test_owner_multiple_nfts_owner_of_each() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let (_admin, client, _core_id) = setup_contract_with_core(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    // Mint 3 NFTs to the same owner
+    let token1 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    let token2 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_002"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &2000,
+        &asset_address,
+        &5,
+    );
+
+    let token3 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_003"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &3000,
+        &asset_address,
+        &5,
+    );
+
+    // Verify owner_of for each token_id returns correct owner
+    assert_eq!(client.try_owner_of(&token1).unwrap().unwrap(), owner);
+    assert_eq!(client.try_owner_of(&token2).unwrap().unwrap(), owner);
+    assert_eq!(client.try_owner_of(&token3).unwrap().unwrap(), owner);
+}
+
+#[test]
+fn test_owner_multiple_nfts_settle_one() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let (_admin, client, _core_id) = setup_contract_with_core(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    // Mint 3 NFTs with 1-day duration
+    let token1 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_001"),
+        &1,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+
+    let token2 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_002"),
+        &1,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &2000,
+        &asset_address,
+        &5,
+    );
+
+    let token3 = client.mint(
+        &owner,
+        &String::from_str(&e, "commitment_003"),
+        &1,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &3000,
+        &asset_address,
+        &5,
+    );
+
+    // Advance time past expiration
+    e.ledger().with_mut(|li| li.timestamp = li.timestamp + 86401);
+
+    // Settle one NFT
+    client.settle(&token2);
+
+    // Verify balance_of still returns 3 (settled NFTs remain in balance)
+    assert_eq!(client.balance_of(&owner), 3);
+
+    // Verify owner_of still works for all tokens
+    assert_eq!(client.try_owner_of(&token1).unwrap().unwrap(), owner);
+    assert_eq!(client.try_owner_of(&token2).unwrap().unwrap(), owner);
+    assert_eq!(client.try_owner_of(&token3).unwrap().unwrap(), owner);
+
+    // Verify settled NFT is no longer active
+    let nft2 = client.try_get_metadata(&token2).unwrap().unwrap();
+    assert_eq!(nft2.is_active, false);
+
+    // Verify other NFTs remain active
+    let nft1 = client.try_get_metadata(&token1).unwrap().unwrap();
+    assert_eq!(nft1.is_active, true);
+
+    let nft3 = client.try_get_metadata(&token3).unwrap().unwrap();
+    assert_eq!(nft3.is_active, true);
+}
