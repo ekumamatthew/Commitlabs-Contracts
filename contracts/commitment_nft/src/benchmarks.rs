@@ -2,10 +2,7 @@
 #![cfg(feature = "benchmark")]
 
 use super::*;
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env, String,
-};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 /// Benchmark helper to measure gas usage
 struct BenchmarkMetrics {
@@ -219,15 +216,6 @@ fn benchmark_batch_mint() {
 
     let mut metrics = BenchmarkMetrics::new("batch_mint_10");
 
-<<<<<<< Updated upstream
-    e.as_contract(&contract_id, || {
-        let start = e.ledger().sequence();
-        for _ in 0..10 {
-            let _ = CommitmentNFTContract::mint(
-                e.clone(),
-                owner.clone(),
-                String::from_str(&e, "commitment_batch"),
-=======
     let start = e.ledger().sequence();
     for commitment_id in commitment_ids.iter() {
         e.as_contract(&contract_id, || {
@@ -235,7 +223,6 @@ fn benchmark_batch_mint() {
                 e.clone(),
                 owner.clone(),
                 String::from_str(&e, commitment_id),
->>>>>>> Stashed changes
                 30,
                 20,
                 String::from_str(&e, "balanced"),

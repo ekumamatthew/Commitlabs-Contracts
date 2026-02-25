@@ -1,6 +1,9 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, symbol_short, Address, BytesN, Env, String, Vec, Symbol};
 use shared_utils::{EmergencyControl, Pausable};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
+    String, Symbol, Vec,
+};
 
 // Current storage version for migration checks.
 const CURRENT_VERSION: u32 = 1;
@@ -238,11 +241,7 @@ impl CommitmentNFTContract {
     }
 
     /// Update admin (admin-only).
-    pub fn set_admin(
-        e: Env,
-        caller: Address,
-        new_admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn set_admin(e: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         require_admin(&e, &caller)?;
         e.storage().instance().set(&DataKey::Admin, &new_admin);
         Ok(())
@@ -261,11 +260,7 @@ impl CommitmentNFTContract {
     }
 
     /// Migrate storage from a previous version to CURRENT_VERSION (admin-only).
-    pub fn migrate(
-        e: Env,
-        caller: Address,
-        from_version: u32,
-    ) -> Result<(), ContractError> {
+    pub fn migrate(e: Env, caller: Address, from_version: u32) -> Result<(), ContractError> {
         require_admin(&e, &caller)?;
 
         let stored_version = read_version(&e);
@@ -285,7 +280,9 @@ impl CommitmentNFTContract {
             e.storage().instance().set(&DataKey::TokenIds, &token_ids);
         }
         if !e.storage().instance().has(&DataKey::ReentrancyGuard) {
-            e.storage().instance().set(&DataKey::ReentrancyGuard, &false);
+            e.storage()
+                .instance()
+                .set(&DataKey::ReentrancyGuard, &false);
         }
 
         e.storage()

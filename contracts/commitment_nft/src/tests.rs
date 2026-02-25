@@ -72,10 +72,7 @@ fn setup_env() -> (Env, Address, Address) {
 }
 
 /// Asserts that the sum of `balance_of` for all given owners equals `total_supply()`.
-fn assert_balance_supply_invariant(
-    client: &CommitmentNFTContractClient,
-    owners: &[&Address],
-) {
+fn assert_balance_supply_invariant(client: &CommitmentNFTContractClient, owners: &[&Address]) {
     let sum: u32 = owners.iter().map(|addr| client.balance_of(addr)).sum();
     assert_eq!(
         sum,
@@ -1005,10 +1002,10 @@ fn test_transfer_after_settlement() {
 // ============================================
 
 /// Test that self-transfer (from == to) is rejected with TransferToZeroAddress error.
-/// 
+///
 /// **Requirement**: RFC #105 - Transfer should reject transfer to self to avoid ambiguous state.
 ///
-/// **Expected Behavior**: 
+/// **Expected Behavior**:
 /// - transfer(owner, owner, token_id) must fail with error #18 (TransferToZeroAddress)
 /// - No state changes should occur
 /// - Useful for preventing accidental no-ops
@@ -1094,7 +1091,7 @@ fn test_transfer_edge_case_from_non_owner() {
 ///
 /// **Requirement**: RFC #105 - Transfer should reject zero/invalid addresses.
 ///
-/// **Expected Behavior**: 
+/// **Expected Behavior**:
 /// - Soroban SDK prevents creation of completely malformed addresses at compile time
 /// - The Address type in Soroban is guaranteed to represent a valid address
 /// - This test serves as defensive documentation of SDK safety guarantees
@@ -1131,16 +1128,19 @@ fn test_transfer_edge_case_address_validation_by_sdk() {
     // The Address type in Soroban SDK is strongly typed and cannot be constructed
     // with invalid/zero values. This test documents that SDK guarantees prevent
     // the invalid address case from ever reaching our contract code.
-    
+
     // To demonstrate this, we use a validly generated address
     assert_eq!(client.owner_of(&token_id), owner);
-    
+
     // If we could construct a zero address, it would be rejected by the contract,
     // but Soroban SDK prevents this at the type level, making the check redundant
     // at runtime. This is a safety guarantee of the SDK.
     //
     // Valid transfer with valid recipient should succeed (after settlement)
-    assert_ne!(owner, valid_recipient, "Recipient must be different from owner");
+    assert_ne!(
+        owner, valid_recipient,
+        "Recipient must be different from owner"
+    );
 }
 
 /// Comprehensive edge cases test for NFT transfer validation.
@@ -1190,8 +1190,16 @@ fn test_transfer_edge_cases_comprehensive() {
     );
 
     // ===== Validation: Initial state =====
-    assert_eq!(client.owner_of(&token_id_1), owner1, "Token 1: Owner should be owner1 initially");
-    assert_eq!(client.owner_of(&token_id_2), owner1, "Token 2: Owner should be owner1 initially");
+    assert_eq!(
+        client.owner_of(&token_id_1),
+        owner1,
+        "Token 1: Owner should be owner1 initially"
+    );
+    assert_eq!(
+        client.owner_of(&token_id_2),
+        owner1,
+        "Token 2: Owner should be owner1 initially"
+    );
     assert_eq!(client.balance_of(&owner1), 2, "owner1 should have 2 NFTs");
     assert_eq!(client.balance_of(&owner2), 0, "owner2 should have 0 NFTs");
     assert_eq!(client.balance_of(&owner3), 0, "owner3 should have 0 NFTs");
@@ -1208,32 +1216,92 @@ fn test_transfer_edge_cases_comprehensive() {
     // ===== Validation: Transfer token_id_1 from owner1 to owner2 =====
     client.transfer(&owner1, &owner2, &token_id_1);
 
-    assert_eq!(client.owner_of(&token_id_1), owner2, "Token 1: Owner should change to owner2 after transfer");
-    assert_eq!(client.balance_of(&owner1), 1, "owner1 should have 1 NFT after first transfer");
-    assert_eq!(client.balance_of(&owner2), 1, "owner2 should have 1 NFT after first transfer");
+    assert_eq!(
+        client.owner_of(&token_id_1),
+        owner2,
+        "Token 1: Owner should change to owner2 after transfer"
+    );
+    assert_eq!(
+        client.balance_of(&owner1),
+        1,
+        "owner1 should have 1 NFT after first transfer"
+    );
+    assert_eq!(
+        client.balance_of(&owner2),
+        1,
+        "owner2 should have 1 NFT after first transfer"
+    );
 
     // ===== Validation: Transfer token_id_2 from owner1 to owner3 =====
     client.transfer(&owner1, &owner3, &token_id_2);
 
-    assert_eq!(client.owner_of(&token_id_2), owner3, "Token 2: Owner should change to owner3");
-    assert_eq!(client.balance_of(&owner1), 0, "owner1 should have 0 NFTs after second transfer");
-    assert_eq!(client.balance_of(&owner2), 1, "owner2 should still have 1 NFT");
-    assert_eq!(client.balance_of(&owner3), 1, "owner3 should have 1 NFT after second transfer");
+    assert_eq!(
+        client.owner_of(&token_id_2),
+        owner3,
+        "Token 2: Owner should change to owner3"
+    );
+    assert_eq!(
+        client.balance_of(&owner1),
+        0,
+        "owner1 should have 0 NFTs after second transfer"
+    );
+    assert_eq!(
+        client.balance_of(&owner2),
+        1,
+        "owner2 should still have 1 NFT"
+    );
+    assert_eq!(
+        client.balance_of(&owner3),
+        1,
+        "owner3 should have 1 NFT after second transfer"
+    );
 
     // ===== Validation: owner2 can transfer their token to owner3 =====
     client.transfer(&owner2, &owner3, &token_id_1);
 
-    assert_eq!(client.owner_of(&token_id_1), owner3, "Token 1: Owner should be owner3 after transfer from owner2");
-    assert_eq!(client.balance_of(&owner2), 0, "owner2 should have 0 NFTs after transferring away");
-    assert_eq!(client.balance_of(&owner3), 2, "owner3 should have 2 NFTs now");
+    assert_eq!(
+        client.owner_of(&token_id_1),
+        owner3,
+        "Token 1: Owner should be owner3 after transfer from owner2"
+    );
+    assert_eq!(
+        client.balance_of(&owner2),
+        0,
+        "owner2 should have 0 NFTs after transferring away"
+    );
+    assert_eq!(
+        client.balance_of(&owner3),
+        2,
+        "owner3 should have 2 NFTs now"
+    );
 
     // ===== Validation: Final ownership state =====
     // Verify that owner3 has all tokens and owners 1 and 2 have none
-    assert_eq!(client.owner_of(&token_id_1), owner3, "Token 1: Final owner should be owner3");
-    assert_eq!(client.owner_of(&token_id_2), owner3, "Token 2: Final owner should be owner3");
-    assert_eq!(client.balance_of(&owner1), 0, "owner1: final balance should be 0");
-    assert_eq!(client.balance_of(&owner2), 0, "owner2: final balance should be 0");
-    assert_eq!(client.balance_of(&owner3), 2, "owner3: final balance should be 2");
+    assert_eq!(
+        client.owner_of(&token_id_1),
+        owner3,
+        "Token 1: Final owner should be owner3"
+    );
+    assert_eq!(
+        client.owner_of(&token_id_2),
+        owner3,
+        "Token 2: Final owner should be owner3"
+    );
+    assert_eq!(
+        client.balance_of(&owner1),
+        0,
+        "owner1: final balance should be 0"
+    );
+    assert_eq!(
+        client.balance_of(&owner2),
+        0,
+        "owner2: final balance should be 0"
+    );
+    assert_eq!(
+        client.balance_of(&owner3),
+        2,
+        "owner3: final balance should be 2"
+    );
 }
 
 // ============================================
@@ -1621,7 +1689,7 @@ fn test_mint_duration_days_max() {
     assert_eq!(token_id, 0);
     let nft = client.get_metadata(&token_id);
     assert_eq!(nft.metadata.duration_days, u32::MAX);
-    
+
     // Verify expires_at calculation handles large values
     // created_at + (u32::MAX * 86400) should not panic
     let expected_expires_at = nft.metadata.created_at + (u32::MAX as u64 * 86400);
@@ -2084,7 +2152,7 @@ fn test_invariant_complex_mint_settle_transfer_scenario() {
 
     assert_eq!(client.total_supply(), 6);
     assert_eq!(client.balance_of(&alice), 1); // had 3, transferred 2
-    assert_eq!(client.balance_of(&bob), 2);   // had 2, received 1, transferred 1
+    assert_eq!(client.balance_of(&bob), 2); // had 2, received 1, transferred 1
     assert_eq!(client.balance_of(&carol), 3); // had 1, received 2
 
     // --- Phase 4: Settle remaining active NFTs ---

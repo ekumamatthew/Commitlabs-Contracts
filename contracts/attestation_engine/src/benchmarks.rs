@@ -3,12 +3,7 @@
 
 use super::*;
 use soroban_sdk::{
-<<<<<<< Updated upstream
-    testutils::Address as _,
-    Address, Env, Map, String,
-=======
     contract, contractimpl, contracttype, testutils::Address as _, Address, Env, Map, String,
->>>>>>> Stashed changes
 };
 
 #[contract]
@@ -255,17 +250,6 @@ fn benchmark_batch_attest() {
 
     let mut metrics = BenchmarkMetrics::new("batch_attest_10");
 
-<<<<<<< Updated upstream
-    e.as_contract(&contract_id, || {
-        let start = e.ledger().sequence();
-        for _ in 0..10 {
-            let commitment_id = String::from_str(&e, "commitment_batch");
-            let mut data = Map::new(&e);
-            data.set(
-                String::from_str(&e, "health_status"),
-                String::from_str(&e, "good"),
-            );
-=======
     for commitment_id_str in commitment_ids.iter() {
         store_mock_commitment(
             &e,
@@ -284,7 +268,6 @@ fn benchmark_batch_attest() {
             String::from_str(&e, "good"),
         );
         e.as_contract(&contract_id, || {
->>>>>>> Stashed changes
             let _ = AttestationEngineContract::attest(
                 e.clone(),
                 admin.clone(),

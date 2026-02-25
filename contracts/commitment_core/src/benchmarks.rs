@@ -2,10 +2,7 @@
 #![cfg(feature = "benchmark")]
 
 use super::*;
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env, String,
-};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 /// Benchmark helper to measure gas usage
 struct BenchmarkMetrics {
@@ -55,7 +52,12 @@ fn setup_test_env(e: &Env) -> (Address, Address, Address) {
     (contract_id, admin, owner)
 }
 
-fn build_benchmark_commitment(e: &Env, owner: &Address, commitment_id: &str, amount: i128) -> Commitment {
+fn build_benchmark_commitment(
+    e: &Env,
+    owner: &Address,
+    commitment_id: &str,
+    amount: i128,
+) -> Commitment {
     Commitment {
         commitment_id: String::from_str(e, commitment_id),
         owner: owner.clone(),
@@ -66,7 +68,6 @@ fn build_benchmark_commitment(e: &Env, owner: &Address, commitment_id: &str, amo
             commitment_type: String::from_str(e, "balanced"),
             early_exit_penalty: 10,
             min_fee_threshold: 1000,
-            grace_period_days: 0,
         },
         amount,
         asset_address: Address::generate(e),
@@ -219,12 +220,8 @@ fn benchmark_batch_create_commitments() {
     e.as_contract(&contract_id, || {
         let start = e.ledger().sequence();
         for (i, commitment_id) in commitment_ids.iter().enumerate() {
-            let commitment = build_benchmark_commitment(
-                &e,
-                &owner,
-                commitment_id,
-                1000_0000000 + (i as i128),
-            );
+            let commitment =
+                build_benchmark_commitment(&e, &owner, commitment_id, 1000_0000000 + (i as i128));
             set_commitment(&e, &commitment);
         }
         let end = e.ledger().sequence();

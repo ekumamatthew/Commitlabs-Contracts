@@ -2,10 +2,7 @@
 #![cfg(feature = "benchmark")]
 
 use super::*;
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env, String,
-};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 /// Benchmark helper to measure gas usage
 struct BenchmarkMetrics {
@@ -211,11 +208,7 @@ fn benchmark_batch_allocate() {
     let e = Env::default();
     let (contract_id, admin) = setup_test_env(&e);
 
-<<<<<<< Updated upstream
-    // Register pools in separate frames
-=======
     // Register pools
->>>>>>> Stashed changes
     for i in 1..=5 {
         e.as_contract(&contract_id, || {
             AllocationStrategiesContract::register_pool(
@@ -234,10 +227,7 @@ fn benchmark_batch_allocate() {
 
     let start = e.ledger().sequence();
     for i in 1..=10 {
-<<<<<<< Updated upstream
-=======
         let caller = Address::generate(&e);
->>>>>>> Stashed changes
         e.as_contract(&contract_id, || {
             let _ = AllocationStrategiesContract::allocate(
                 e.clone(),
