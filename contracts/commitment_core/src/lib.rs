@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, log, symbol_short, token, Address, Env,
-    IntoVal, String, Symbol, Vec,
+    FromVal, IntoVal, String, Symbol, Vec,
 };
 use shared_utils::{SafeMath, TimeUtils, Validation, RateLimiter, emit_error_event, Pausable};
 
