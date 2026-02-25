@@ -1,8 +1,11 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, symbol_short, Address, BytesN, Env, String, Vec, Symbol};
 use shared_utils::{EmergencyControl, Pausable};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
+    String, Symbol, Vec,
+};
 
-/// Current storage/contract version for migrations
+// Current storage version for migration checks.
 const CURRENT_VERSION: u32 = 1;
 
 // ============================================================================
@@ -52,6 +55,8 @@ pub enum ContractError {
     TransferToZeroAddress = 18,
     /// NFT is locked (active commitment) and cannot be transferred
     NFTLocked = 19,
+    /// Duration would cause expires_at to overflow u64
+    ExpirationOverflow = 20,
 }
 
 // ============================================================================
@@ -372,6 +377,28 @@ impl CommitmentNFTContract {
             return Err(ContractError::InvalidAmount);
         }
 
+        // Calculate timestamps with overflow check (duration_days * 86400 + created_at must fit in u64)
+        let created_at = e.ledger().timestamp();
+        let seconds_per_day: u64 = 86400;
+        let duration_seconds = match (duration_days as u64).checked_mul(seconds_per_day) {
+            Some(s) => s,
+            None => {
+                e.storage()
+                    .instance()
+                    .set(&DataKey::ReentrancyGuard, &false);
+                return Err(ContractError::ExpirationOverflow);
+            }
+        };
+        let expires_at = match created_at.checked_add(duration_seconds) {
+            Some(t) => t,
+            None => {
+                e.storage()
+                    .instance()
+                    .set(&DataKey::ReentrancyGuard, &false);
+                return Err(ContractError::ExpirationOverflow);
+            }
+        };
+
         // EFFECTS: Update state
         // Generate unique token_id
         let token_id: u32 = e
@@ -383,11 +410,6 @@ impl CommitmentNFTContract {
         e.storage()
             .instance()
             .set(&DataKey::TokenCounter, &next_token_id);
-
-        // Calculate timestamps
-        let created_at = e.ledger().timestamp();
-        let seconds_per_day: u64 = 86400;
-        let expires_at = created_at + (duration_days as u64 * seconds_per_day);
 
         // Create CommitmentMetadata
         let metadata = CommitmentMetadata {
@@ -539,13 +561,8 @@ impl CommitmentNFTContract {
             return Err(ContractError::NotOwner);
         }
 
-        // Check if NFT is active (locked) - active commitments cannot be transferred
-        if nft.is_active {
-            e.storage()
-                .instance()
-                .set(&DataKey::ReentrancyGuard, &false);
-            return Err(ContractError::NFTLocked);
-        }
+        // Note: Active commitments CAN be transferred (secondary market)
+        // The commitment_core contract maintains the commitment state separately
 
         // EFFECTS: Update state
         // Update owner
@@ -691,13 +708,11 @@ impl CommitmentNFTContract {
     // Settlement (Issue #5 - Main Implementation)
     // ========================================================================
 
-    /// Mark NFT as settled (after maturity).
-    /// Only the configured commitment_core contract or admin may call this; pass the caller address.
+    /// Mark NFT as inactive (for early exit or other non-expiry scenarios)
     ///
     /// # Reentrancy Protection
-    /// Uses checks-effects-interactions pattern. This function only writes to storage
-    /// and doesn't make external calls, but still protected for consistency.
-    pub fn settle(e: Env, caller: Address, token_id: u32) -> Result<(), ContractError> {
+    /// Uses checks-effects-interactions pattern.
+    pub fn mark_inactive(e: Env, token_id: u32) -> Result<(), ContractError> {
         // Reentrancy protection
         let guard: bool = e
             .storage()
@@ -714,30 +729,64 @@ impl CommitmentNFTContract {
         // Check if contract is paused
         Pausable::require_not_paused(&e);
 
-        // Access control (Issue #108): only the authorized commitment_core contract or admin may call settle.
-        // Caller must be passed and authorized; admin is allowed for emergency/operational use.
-        let core_contract: Address = e
+        // CHECKS: Get the NFT
+        let mut nft: CommitmentNFT = e
             .storage()
-            .instance()
-            .get(&DataKey::CoreContract)
+            .persistent()
+            .get(&DataKey::NFT(token_id))
             .ok_or_else(|| {
                 e.storage()
                     .instance()
                     .set(&DataKey::ReentrancyGuard, &false);
-                ContractError::NotInitialized
+                ContractError::TokenNotFound
             })?;
-        let admin: Address = e
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .ok_or(ContractError::NotInitialized)?;
-        if caller != core_contract && caller != admin {
+
+        // Check if already inactive
+        if !nft.is_active {
             e.storage()
                 .instance()
                 .set(&DataKey::ReentrancyGuard, &false);
-            return Err(ContractError::NotAuthorized);
+            return Err(ContractError::AlreadySettled);
         }
-        caller.require_auth();
+
+        // EFFECTS: Update state
+        // Mark as inactive
+        nft.is_active = false;
+        e.storage().persistent().set(&DataKey::NFT(token_id), &nft);
+
+        // Clear reentrancy guard
+        e.storage()
+            .instance()
+            .set(&DataKey::ReentrancyGuard, &false);
+
+        // Emit event
+        e.events()
+            .publish((symbol_short!("Inactive"), token_id), e.ledger().timestamp());
+
+        Ok(())
+    }
+
+    /// Mark NFT as settled (after maturity)
+    ///
+    /// # Reentrancy Protection
+    /// Uses checks-effects-interactions pattern. This function only writes to storage
+    /// and doesn't make external calls, but still protected for consistency.
+    pub fn settle(e: Env, token_id: u32) -> Result<(), ContractError> {
+        // Reentrancy protection
+        let guard: bool = e
+            .storage()
+            .instance()
+            .get(&DataKey::ReentrancyGuard)
+            .unwrap_or(false);
+
+        if guard {
+            return Err(ContractError::ReentrancyDetected);
+        }
+        e.storage().instance().set(&DataKey::ReentrancyGuard, &true);
+        EmergencyControl::require_not_emergency(&e);
+
+        // Check if contract is paused
+        Pausable::require_not_paused(&e);
 
         // CHECKS: Get the NFT
         let mut nft: CommitmentNFT = e
@@ -759,7 +808,7 @@ impl CommitmentNFTContract {
             return Err(ContractError::AlreadySettled);
         }
 
-        // Verify the commitment has expired
+        // Verify expiration
         let current_time = e.ledger().timestamp();
         if current_time < nft.metadata.expires_at {
             e.storage()

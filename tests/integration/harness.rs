@@ -78,7 +78,7 @@ impl TestHarness {
     /// Create a new test harness with all contracts deployed and initialized
     pub fn new() -> Self {
         let env = Env::default();
-        env.mock_all_auths();
+        env.mock_all_auths_allowing_non_root_auth();
 
         // Set initial ledger state
         env.ledger().set(LedgerInfo {
@@ -89,7 +89,7 @@ impl TestHarness {
             base_reserve: 10,
             min_temp_entry_ttl: 1000,
             min_persistent_entry_ttl: 1000,
-            max_entry_ttl: 10000,
+            max_entry_ttl: 200_000,
         });
 
         let accounts = TestAccounts::new(&env);
@@ -184,7 +184,7 @@ impl TestHarness {
     /// Create a minimal harness with just token and oracle (for simpler tests)
     pub fn minimal() -> Self {
         let env = Env::default();
-        env.mock_all_auths();
+        env.mock_all_auths_allowing_non_root_auth();
 
         env.ledger().set(LedgerInfo {
             timestamp: 1704067200,
@@ -194,7 +194,7 @@ impl TestHarness {
             base_reserve: 10,
             min_temp_entry_ttl: 1000,
             min_persistent_entry_ttl: 1000,
-            max_entry_ttl: 10000,
+            max_entry_ttl: 200_000,
         });
 
         let accounts = TestAccounts::new(&env);
@@ -318,9 +318,32 @@ impl TestHarness {
 
     /// Approve token spending
     pub fn approve_tokens(&self, owner: &Address, spender: &Address, amount: i128) {
-        let expiration = self.current_timestamp() + SECONDS_PER_DAY * 365;
+        let expiration = self.env.ledger().sequence() + 100_000;
         self.token_client()
-            .approve(owner, spender, &amount, &(expiration as u32));
+            .approve(owner, spender, &amount, &expiration);
+    }
+
+    // ========================================================================
+    // Commitment Helpers
+    // ========================================================================
+
+    /// Create a commitment with proper authorization
+    pub fn create_commitment(
+        &self,
+        owner: &Address,
+        amount: i128,
+        asset: &Address,
+        rules: CommitmentRules,
+    ) -> String {
+        self.env.as_contract(&self.contracts.commitment_core, || {
+            CommitmentCoreContract::create_commitment(
+                self.env.clone(),
+                owner.clone(),
+                amount,
+                asset.clone(),
+                rules,
+            )
+        })
     }
 
     // ========================================================================
