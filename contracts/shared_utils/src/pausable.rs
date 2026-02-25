@@ -8,7 +8,7 @@ pub struct Pausable;
 
 impl Pausable {
     /// Storage key for the paused state
-    // pub const PAUSED_KEY: Symbol = Symbol::new("paused");
+    pub const PAUSED_KEY: Symbol = Symbol::new("paused");
 
     pub fn paused_key(env: &Env) -> Symbol {
         Symbol::new(env, "paused")
