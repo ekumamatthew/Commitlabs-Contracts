@@ -25,6 +25,8 @@ pub enum CommitmentError {
     InvalidStatus = 13,
     NotInitialized = 14,
     NotExpired = 15,
+    /// Duration would cause expires_at to overflow u64
+    ExpirationOverflow = 16,
 }
 
 impl CommitmentError {
@@ -46,6 +48,7 @@ impl CommitmentError {
             CommitmentError::InvalidStatus => "Invalid commitment status for this operation",
             CommitmentError::NotInitialized => "Contract not initialized",
             CommitmentError::NotExpired => "Commitment has not expired yet",
+            CommitmentError::ExpirationOverflow => "Duration would cause expiration timestamp overflow",
         }
     }
 }
@@ -381,6 +384,13 @@ impl CommitmentCoreContract {
         // Validate rules
         Self::validate_rules(&e, &rules);
 
+        // Reject duration_days that would cause expires_at to overflow u64
+        let expires_at = TimeUtils::checked_calculate_expiration(&e, rules.duration_days)
+            .unwrap_or_else(|| {
+                set_reentrancy_guard(&e, false);
+                fail(&e, CommitmentError::ExpirationOverflow, "create_commitment")
+            });
+
         // OPTIMIZATION: Read both counters and NFT contract once to minimize storage operations
         let (current_total, current_tvl, nft_contract) = {
             let total = e.storage().instance().get::<_, u64>(&DataKey::TotalCommitments).unwrap_or(0);
@@ -402,10 +412,8 @@ impl CommitmentCoreContract {
             fail(&e, CommitmentError::InvalidStatus, "create_commitment");
         }
 
-        // EFFECTS: Update state before external calls
-        // Calculate expiration timestamp using shared utilities
+        // EFFECTS: Update state before external calls (expires_at already computed above with overflow check)
         let current_timestamp = TimeUtils::now(&e);
-        let expires_at = TimeUtils::calculate_expiration(&e, rules.duration_days);
 
         // Create commitment data
         let commitment = Commitment {

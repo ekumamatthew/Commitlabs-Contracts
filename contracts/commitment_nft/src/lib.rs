@@ -52,6 +52,8 @@ pub enum ContractError {
     TransferToZeroAddress = 18,
     /// NFT is locked (active commitment) and cannot be transferred
     NFTLocked = 19,
+    /// Duration would cause expires_at to overflow u64
+    ExpirationOverflow = 20,
 }
 
 // ============================================================================
@@ -375,6 +377,28 @@ impl CommitmentNFTContract {
             return Err(ContractError::InvalidAmount);
         }
 
+        // Calculate timestamps with overflow check (duration_days * 86400 + created_at must fit in u64)
+        let created_at = e.ledger().timestamp();
+        let seconds_per_day: u64 = 86400;
+        let duration_seconds = match (duration_days as u64).checked_mul(seconds_per_day) {
+            Some(s) => s,
+            None => {
+                e.storage()
+                    .instance()
+                    .set(&DataKey::ReentrancyGuard, &false);
+                return Err(ContractError::ExpirationOverflow);
+            }
+        };
+        let expires_at = match created_at.checked_add(duration_seconds) {
+            Some(t) => t,
+            None => {
+                e.storage()
+                    .instance()
+                    .set(&DataKey::ReentrancyGuard, &false);
+                return Err(ContractError::ExpirationOverflow);
+            }
+        };
+
         // EFFECTS: Update state
         // Generate unique token_id
         let token_id: u32 = e
@@ -386,11 +410,6 @@ impl CommitmentNFTContract {
         e.storage()
             .instance()
             .set(&DataKey::TokenCounter, &next_token_id);
-
-        // Calculate timestamps
-        let created_at = e.ledger().timestamp();
-        let seconds_per_day: u64 = 86400;
-        let expires_at = created_at + (duration_days as u64 * seconds_per_day);
 
         // Create CommitmentMetadata
         let metadata = CommitmentMetadata {

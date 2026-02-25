@@ -202,6 +202,38 @@ fn test_error_zero_amount_commitment() {
         });
 }
 
+/// Test: Duration that would cause expires_at overflow is rejected (Issue #118)
+#[test]
+#[should_panic(expected = "Duration would cause expiration timestamp overflow")]
+fn test_error_expiration_overflow() {
+    let harness = TestHarness::new();
+    let user = &harness.accounts.user1;
+    let amount = 1_000_000_000_000i128;
+
+    harness.approve_tokens(user, &harness.contracts.commitment_core, amount);
+    harness.set_timestamp(u64::MAX - 50_000);
+
+    let rules = CommitmentRules {
+        duration_days: 1,
+        max_loss_percent: 10,
+        commitment_type: String::from_str(&harness.env, "balanced"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 1000,
+    };
+
+    harness
+        .env
+        .as_contract(&harness.contracts.commitment_core, || {
+            CommitmentCoreContract::create_commitment(
+                harness.env.clone(),
+                user.clone(),
+                amount,
+                harness.contracts.token.clone(),
+                rules,
+            )
+        });
+}
+
 /// Test: Invalid duration fails
 #[test]
 #[should_panic(expected = "Invalid duration")]
@@ -534,7 +566,7 @@ fn test_error_double_settlement() {
 // Boundary Value Tests
 // ============================================================================
 
-/// Test: Maximum duration commitment
+/// Test: Maximum safe duration commitment (expires_at must not overflow u64)
 #[test]
 fn test_boundary_max_duration() {
     let harness = TestHarness::new();
@@ -543,15 +575,17 @@ fn test_boundary_max_duration() {
 
     harness.approve_tokens(user, &harness.contracts.commitment_core, amount);
 
+    let now = harness.current_timestamp();
+    let max_safe_days = ((u64::MAX - now) / SECONDS_PER_DAY).min(u32::MAX as u64) as u32;
+
     let rules = CommitmentRules {
-        duration_days: u32::MAX, // Maximum possible duration
+        duration_days: max_safe_days,
         max_loss_percent: 10,
         commitment_type: String::from_str(&harness.env, "balanced"),
         early_exit_penalty: 5,
         min_fee_threshold: 1000,
     };
 
-    // This should succeed (no explicit max duration)
     let commitment_id = harness
         .env
         .as_contract(&harness.contracts.commitment_core, || {
@@ -564,13 +598,16 @@ fn test_boundary_max_duration() {
             )
         });
 
-    // Verify commitment was created
     let commitment = harness
         .env
         .as_contract(&harness.contracts.commitment_core, || {
             CommitmentCoreContract::get_commitment(harness.env.clone(), commitment_id)
         });
-    assert_eq!(commitment.rules.duration_days, u32::MAX);
+    assert_eq!(commitment.rules.duration_days, max_safe_days);
+    assert_eq!(
+        commitment.expires_at,
+        now + (max_safe_days as u64 * SECONDS_PER_DAY)
+    );
 }
 
 /// Test: Minimum valid amount (1 unit)
