@@ -1181,12 +1181,16 @@ fn test_transfer_locked_nft() {
     // Verify NFT is active
     assert_eq!(client.is_active(&token_id), true);
 
-    // Transfer active NFT (now allowed for secondary market)
-    client.transfer(&owner, &recipient, &token_id);
-    
-    // Verify ownership changed
-    assert_eq!(client.owner_of(&token_id), recipient);
-    assert_eq!(client.is_active(&token_id), true); // Still active after transfer
+    // Transfer of active (locked) NFT must fail (#145)
+    let result = client.try_transfer(&owner, &recipient, &token_id);
+    assert!(
+        result.is_err(),
+        "transfer of active (locked) NFT must return error"
+    );
+
+    // Ownership unchanged
+    assert_eq!(client.owner_of(&token_id), owner);
+    assert_eq!(client.is_active(&token_id), true);
 }
 
 #[test]
