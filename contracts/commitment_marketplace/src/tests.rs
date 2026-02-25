@@ -18,8 +18,8 @@ fn setup_marketplace(e: &Env) -> (Address, Address, CommitmentMarketplaceClient<
     let nft_contract = Address::generate(e);
     let fee_recipient = Address::generate(e);
 
-    // Use register instead of register_contract
-    let marketplace_id = e.register(CommitmentMarketplace, ());
+    // Use register_contract for Soroban SDK
+    let marketplace_id = e.register_contract(None, CommitmentMarketplace);
     let client = CommitmentMarketplaceClient::new(e, &marketplace_id);
 
     client.initialize(&admin, &nft_contract, &250, &fee_recipient); // 2.5% fee
@@ -46,7 +46,7 @@ fn test_initialize_marketplace() {
     let nft_contract = Address::generate(&e);
     let fee_recipient = Address::generate(&e);
 
-    let marketplace_id = e.register(CommitmentMarketplace, ());
+    let marketplace_id = e.register_contract(None, CommitmentMarketplace);
     let client = CommitmentMarketplaceClient::new(&e, &marketplace_id);
 
     client.initialize(&admin, &nft_contract, &250, &fee_recipient);

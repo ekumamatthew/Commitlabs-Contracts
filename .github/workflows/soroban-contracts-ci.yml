@@ -23,8 +23,6 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Add Soroban Rust targets
         run: |
@@ -33,18 +31,20 @@ jobs:
 
       - name: Install Stellar CLI via Homebrew
         run: |
-          brew tap stellar/stellar-cli || true
+          brew tap stellar/tap || true
           brew install stellar-cli || brew install stellar
 
       - name: Verify Stellar CLI installation
         run: |
           if command -v stellar &> /dev/null; then
+            echo "✓ Stellar CLI found"
             stellar --version
-          fi
-          if command -v soroban &> /dev/null; then
+          elif command -v soroban &> /dev/null; then
+            echo "✓ Soroban CLI found"
             soroban --version
           else
-            echo "Note: soroban command not found, using stellar CLI"
+            echo "Error: Neither stellar nor soroban CLI found after installation"
+            exit 1
           fi
 
       - name: Cache Cargo dependencies
@@ -100,12 +100,6 @@ jobs:
           cargo test
           echo "✓ Integration tests passed"
           
-      - name: Validate monitoring config
-        run: |
-          chmod +x monitoring/scripts/validate_monitoring_config.sh
-          monitoring/scripts/validate_monitoring_config.sh
-          echo "✓ Monitoring config validated"
-
       - name: Validate monitoring config
         run: |
           chmod +x monitoring/scripts/validate_monitoring_config.sh

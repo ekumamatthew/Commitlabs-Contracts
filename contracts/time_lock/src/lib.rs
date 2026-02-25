@@ -4,9 +4,6 @@ use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
 
-/// Minimum delay for any timelock action (1 day in seconds)
-const MIN_DELAY: u64 = 86400;
-
 /// Maximum delay allowed (30 days in seconds)
 const MAX_DELAY: u64 = 2592000;
 
