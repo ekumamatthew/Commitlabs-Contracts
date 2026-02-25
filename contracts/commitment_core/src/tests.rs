@@ -1588,14 +1588,9 @@ fn test_create_commitment_zero_address_fails() {
 
     client.initialize(&admin, &nft_contract);
 
-    // Construct zero address via XDR — same technique as is_zero_address in lib.rs.
-    // FromVal is brought in via `use super::*` → soroban_sdk::FromVal (added to lib.rs import).
-    use soroban_sdk::xdr::{AccountId, PublicKey, ScAddress, Uint256};
-    let zero_xdr = ScAddress::Account(AccountId(
-        PublicKey::PublicKeyTypeEd25519(Uint256([0u8; 32])),
-    ));
-    let val: soroban_sdk::Val = zero_xdr.into_val(&e);
-    let zero_address = Address::from_val(&e, &val);
+    // Construct zero address natively using the environment (No XDR needed!)
+    let zero_str = String::from_str(&e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
+    let zero_address = Address::from_string(&e, &zero_str);
 
     let rules = CommitmentRules {
         duration_days: 30,
@@ -1603,7 +1598,7 @@ fn test_create_commitment_zero_address_fails() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
+        // Removed `grace_period_days` because it is not defined in lib.rs!
     };
 
     client.create_commitment(&zero_address, &1000i128, &asset_address, &rules);
