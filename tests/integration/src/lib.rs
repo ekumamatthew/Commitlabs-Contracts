@@ -71,7 +71,6 @@ impl IntegrationTestFixture {
             commitment_type: String::from_str(&self.env, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100_0000000,
-            grace_period_days: 3,
         }
     }
 }
@@ -131,7 +130,6 @@ fn test_commitment_value_update_with_health_tracking() {
         commitment_type: String::from_str(&fixture.env, "balanced"),
         early_exit_penalty: 5,
         min_fee_threshold: 100_0000000,
-        grace_period_days: 3,
     };
 
     // Create commitment
@@ -145,7 +143,7 @@ fn test_commitment_value_update_with_health_tracking() {
     // Update value in core contract
     fixture
         .core_client
-        .update_value(&fixture.admin, &commitment_id, &1050_0000000);
+        .update_value(&commitment_id, &1050_0000000);
 
     // Record health metrics in attestation engine
     fixture
@@ -215,7 +213,6 @@ fn test_early_exit_flow_end_to_end() {
         commitment_type: String::from_str(&fixture.env, "aggressive"),
         early_exit_penalty: 10,
         min_fee_threshold: 100_0000000,
-        grace_period_days: 3,
     };
 
     // Create commitment
@@ -229,7 +226,7 @@ fn test_early_exit_flow_end_to_end() {
     // Update value
     fixture
         .core_client
-        .update_value(&fixture.admin, &commitment_id, &1100_0000000);
+        .update_value(&commitment_id, &1100_0000000);
 
     // Record attestation for early exit
     let mut data = Map::new(&fixture.env);
@@ -342,13 +339,13 @@ fn test_gas_multiple_operations() {
     // Multiple update operations
     fixture
         .core_client
-        .update_value(&fixture.admin, &commitment_id, &1010_0000000);
+        .update_value(&commitment_id, &1010_0000000);
     fixture
         .core_client
-        .update_value(&fixture.admin, &commitment_id, &1020_0000000);
+        .update_value(&commitment_id, &1020_0000000);
     fixture
         .core_client
-        .update_value(&fixture.admin, &commitment_id, &1030_0000000);
+        .update_value(&commitment_id, &1030_0000000);
 
     // Multiple attestation operations
     fixture

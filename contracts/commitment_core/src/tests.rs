@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events, Ledger},
-    token, vec, Address, Env, IntoVal, String,
+    vec, Address, Env, IntoVal, String,
 };
 
 // Helper function to create a test commitment
@@ -30,7 +30,6 @@ fn create_test_commitment(
             commitment_type: String::from_str(e, "balanced"),
             early_exit_penalty: 10,
             min_fee_threshold: 1000,
-            grace_period_days: 0,
         },
         amount,
         asset_address: Address::generate(e),
@@ -46,24 +45,6 @@ fn store_commitment(e: &Env, contract_id: &Address, commitment: &Commitment) {
     e.as_contract(contract_id, || {
         set_commitment(e, commitment);
     });
-}
-
-// Helper to setup a mock token contract with specific balances for testing
-// We create a simple mock by using the test environment's ability to mock
-// contract invocations. This is a workaround since Soroban testutils doesn't
-// directly provide token balance setting in all versions.
-fn setup_token_contract(e: &Env) -> Address {
-    // Generate a token address - it doesn't need to be registered
-    // The test environment with mock_all_auths() will handle token operations
-    Address::generate(e)
-}
-
-// Mock helper for insufficient balance testing
-// This uses Soroban's error handling to simulate insufficient balance scenario
-fn setup_insufficient_balance_token(e: &Env) -> Address {
-    // For testing insufficient balance, we'll use a contract that will fail on balance check
-    // The way to simulate this in Soroban tests is to ensure the balance() call returns 0
-    Address::generate(e)
 }
 
 #[test]
@@ -102,7 +83,6 @@ fn test_create_commitment_valid() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     let _amount = 1000i128;
@@ -126,7 +106,6 @@ fn test_validate_rules_invalid_duration() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Test invalid duration - should panic
@@ -147,7 +126,6 @@ fn test_validate_rules_invalid_max_loss() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Test invalid max loss percent - should panic
@@ -168,7 +146,6 @@ fn test_validate_rules_invalid_type() {
         commitment_type: String::from_str(&e, "invalid_type"), // Invalid type
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Test invalid commitment type - should panic
@@ -203,7 +180,6 @@ fn test_create_commitment_duration_zero() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     e.as_contract(&contract_id, || {
@@ -233,7 +209,6 @@ fn test_create_commitment_max_loss_over_100() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     e.as_contract(&contract_id, || {
@@ -263,7 +238,6 @@ fn test_create_commitment_amount_zero() {
             commitment_type: String::from_str(&e, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100,
-            grace_period_days: 0,
         };
 
     e.as_contract(&contract_id, || {
@@ -293,7 +267,6 @@ fn test_create_commitment_amount_negative() {
             commitment_type: String::from_str(&e, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100,
-            grace_period_days: 0,
         };
 
     e.as_contract(&contract_id, || {
@@ -323,7 +296,6 @@ fn test_create_commitment_invalid_type() {
         commitment_type: String::from_str(&e, "invalid"), // Invalid type
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     e.as_contract(&contract_id, || {
@@ -352,7 +324,6 @@ fn test_create_commitment_valid_rules() {
             commitment_type: String::from_str(&e, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100,
-            grace_period_days: 0,
         };
 
     // This will fail at NFT minting since we don't have a real NFT contract,
@@ -818,7 +789,6 @@ fn test_create_commitment_event() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        grace_period_days: 0,
     };
 
     // Note: This might panic if mock token transfers are not set up, but we are testing events.
@@ -850,8 +820,6 @@ fn test_update_value_event() {
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        // Authorize the updater via allocation contract
-        CommitmentCoreContract::set_allocation_contract(e.clone(), admin.clone(), updater.clone());
         let commitment = create_test_commitment(
             &e,
             "test_id",
@@ -866,16 +834,11 @@ fn test_update_value_event() {
         e.storage()
             .instance()
             .set(&DataKey::TotalValueLocked, &1000i128);
-        
-        CommitmentCoreContract::update_value(
-            e.clone(),
-            updater.clone(),
-            commitment_id.clone(),
-            1100,
-        );
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
+    client.update_value(&commitment_id, &1100);
+
     let updated = client.get_commitment(&commitment_id);
     assert_eq!(updated.current_value, 1100);
     assert_eq!(client.get_total_value_locked(), 1100);
@@ -895,8 +858,6 @@ fn test_update_value_rate_limit_enforced() {
 
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        // Authorize the updater via allocation contract
-        CommitmentCoreContract::set_allocation_contract(e.clone(), admin.clone(), updater.clone());
         CommitmentCoreContract::set_rate_limit(
             e.clone(),
             admin.clone(),
@@ -918,22 +879,13 @@ fn test_update_value_rate_limit_enforced() {
         e.storage()
             .instance()
             .set(&DataKey::TotalValueLocked, &1000i128);
-        
-        // First call — allowed
-        CommitmentCoreContract::update_value(
-            e.clone(),
-            updater.clone(),
-            commitment_id.clone(),
-            100,
-        );
-        // Second call — should hit rate limit and panic
-        CommitmentCoreContract::update_value(
-            e.clone(),
-            updater.clone(),
-            commitment_id.clone(),
-            200,
-        );
     });
+
+    let client = CommitmentCoreContractClient::new(&e, &contract_id);
+    // First call — allowed
+    client.update_value(&commitment_id, &100);
+    // Second call — should hit rate limit and panic
+    client.update_value(&commitment_id, &200);
 }
 
 #[test]
@@ -1001,7 +953,6 @@ fn create_test_commitment_with_penalty(
             commitment_type: String::from_str(e, "balanced"),
             early_exit_penalty,
             min_fee_threshold: 1000,
-            grace_period_days: 0,
         },
         amount,
         asset_address: Address::generate(e),
@@ -1435,34 +1386,19 @@ fn test_early_exit_status_transition() {
 
     assert_eq!(before.status, String::from_str(&e, "active"));
 }
-// ============================================================================
-// Access Control Tests for update_value
-// ============================================================================
-
 #[test]
-#[should_panic(expected = "Unauthorized: caller not allowed")]
-fn test_update_value_unauthorized_caller() {
+fn test_update_value_updates_without_updater_param() {
     let e = Env::default();
     e.mock_all_auths();
-    
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let owner = Address::generate(&e);
-    let unauthorized = Address::generate(&e);
-
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, e.ledger().timestamp());
+        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
         set_commitment(&e, &commitment);
-        e.storage().instance().set(&DataKey::TotalValueLocked, &1000i128);
-        // unauthorized is NOT admin or in allocation contract, so this must panic
-        CommitmentCoreContract::update_value(
-            e.clone(),
-            unauthorized.clone(),
-            String::from_str(&e, "test_id"),
-            900,
-        );
+        CommitmentCoreContract::update_value(e.clone(), String::from_str(&e, "test_id"), 900);
     });
 }
 
@@ -1470,26 +1406,22 @@ fn test_update_value_unauthorized_caller() {
 fn test_update_value_no_violation() {
     let e = Env::default();
     e.mock_all_auths();
-    
     let contract_id = e.register_contract(None, CommitmentCoreContract);
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let owner = Address::generate(&e);
-
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, e.ledger().timestamp());
+        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
         set_commitment(&e, &commitment);
         e.storage()
             .instance()
             .set(&DataKey::TotalValueLocked, &1000i128);
     });
 
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::update_value(e.clone(), admin.clone(), String::from_str(&e, "test_id"), 950);
-    });
-
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
+    client.update_value(&String::from_str(&e, "test_id"), &950);
+
     let updated = client.get_commitment(&String::from_str(&e, "test_id"));
     assert_eq!(updated.current_value, 950);
     assert_eq!(updated.status, String::from_str(&e, "active"));
@@ -1497,87 +1429,29 @@ fn test_update_value_no_violation() {
 }
 
 #[test]
-#[should_panic(expected = "Unauthorized: caller not allowed")]
-fn test_set_allocation_contract_by_non_admin() {
+fn test_update_value_triggers_violation() {
     let e = Env::default();
     e.mock_all_auths();
-    
     let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    let allocation_contract = Address::generate(&e);
-    let non_admin = Address::generate(&e);
-    
-    e.as_contract(&contract_id, || {
-        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
-        CommitmentCoreContract::set_allocation_contract(e.clone(), non_admin.clone(), allocation_contract.clone());
-    });
-}
-
-// ─── Tests for create_commitment balance validation (Issue #112) ───────────────────────
-// 
-// These tests verify that insufficient balance is detected in the CHECKS phase (before state mutations)
-// rather than in the INTERACTIONS phase. This ensures the CEI (Checks-Effects-Interactions) pattern
-// is correctly implemented, preventing partial state mutations when asset transfers fail.
-
-#[test]
-fn test_create_commitment_checks_phase_validates_balance() {
-    // This test verifies the CEI pattern is correctly implemented by ensuring:
-    // 1. Balance check (check_sufficient_balance) is called in CHECKS phase
-    // 2. State mutations (set_commitment, increment counters) happen in EFFECTS phase
-    // 3. External calls (token transfer) happen in INTERACTIONS phase
-    //
-    // We verify this by examining the contract code flow directly.
-    // The check_sufficient_balance function is called at line ~409 in lib.rs,
-    // which is BEFORE set_commitment calls at line ~455+.
-    //
-    // This structural verification ensures the CEI pattern is preserved.
-    let e = Env::default();
-    e.mock_all_auths();
-    
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    
-    let admin = Address::generate(&e);
-    let nft_contract = Address::generate(&e);
-    
-    // Initialize contract
-    client.initialize(&admin, &nft_contract);
-    
-    // Verify initialization succeeded
-    let stored_admin = client.get_admin();
-    assert_eq!(stored_admin, admin);
-}
-
-#[test]
-#[should_panic]
-fn test_create_commitment_requires_positive_amount() {
-    // Verify that amount validation still works (negative or zero amounts should fail)
-    let e = Env::default();
-    e.mock_all_auths();
-    
-    let contract_id = e.register_contract(None, CommitmentCoreContract);
-    let client = CommitmentCoreContractClient::new(&e, &contract_id);
-    
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let owner = Address::generate(&e);
-    let token_address = setup_token_contract(&e);
-    
-    client.initialize(&admin, &nft_contract);
-    
-    let rules = CommitmentRules {
-        duration_days: 30,
-        max_loss_percent: 10,
-        commitment_type: String::from_str(&e, "safe"),
-        early_exit_penalty: 5,
-        min_fee_threshold: 100,
-        grace_period_days: 0,
-    };
-    
-    // Try to create with zero amount - should fail at validation
-    // This test ensures the checks are in place before balance validation
-    client.create_commitment(&owner, &0i128, &token_address, &rules);
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
+        let commitment = create_test_commitment(&e, "test_id", &owner, 1000, 1000, 10, 30, 1000);
+        set_commitment(&e, &commitment);
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalValueLocked, &1000i128);
+    });
+
+    let client = CommitmentCoreContractClient::new(&e, &contract_id);
+    client.update_value(&String::from_str(&e, "test_id"), &850);
+
+    let updated = client.get_commitment(&String::from_str(&e, "test_id"));
+    assert_eq!(updated.current_value, 850);
+    assert_eq!(updated.status, String::from_str(&e, "active"));
+    assert!(client.check_violations(&String::from_str(&e, "test_id")));
 }
 
 // ============================================

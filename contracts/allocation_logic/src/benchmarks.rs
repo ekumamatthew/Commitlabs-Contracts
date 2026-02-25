@@ -3,8 +3,8 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
-    Address, Env,
+    testutils::Address as _,
+    Address, Env, String,
 };
 
 /// Benchmark helper to measure gas usage
@@ -24,7 +24,7 @@ impl BenchmarkMetrics {
         }
     }
 
-    fn record_gas(&mut self, before: u64, after: u64) {
+    fn record_gas(&mut self, before: u32, after: u32) {
         self.gas_before = before;
         self.gas_after = after;
     }
@@ -40,6 +40,7 @@ impl BenchmarkMetrics {
 }
 
 fn setup_test_env(e: &Env) -> (Address, Address) {
+    e.mock_all_auths();
     let admin = Address::generate(e);
     let core_contract = Address::generate(e);
     let contract_id = e.register_contract(None, AllocationStrategiesContract);
@@ -55,6 +56,7 @@ fn setup_test_env(e: &Env) -> (Address, Address) {
 #[test]
 fn benchmark_initialize() {
     let e = Env::default();
+    e.mock_all_auths();
     let admin = Address::generate(&e);
     let core_contract = Address::generate(&e);
     let contract_id = e.register_contract(None, AllocationStrategiesContract);
@@ -208,9 +210,9 @@ fn benchmark_batch_allocate() {
     let e = Env::default();
     let (contract_id, admin) = setup_test_env(&e);
 
-    // Register pools
-    e.as_contract(&contract_id, || {
-        for i in 1..=5 {
+    // Register pools in separate frames
+    for i in 1..=5 {
+        e.as_contract(&contract_id, || {
             AllocationStrategiesContract::register_pool(
                 e.clone(),
                 admin.clone(),
@@ -220,15 +222,15 @@ fn benchmark_batch_allocate() {
                 10000_0000000,
             )
             .unwrap();
-        }
-    });
+        });
+    }
 
     let caller = Address::generate(&e);
     let mut metrics = BenchmarkMetrics::new("batch_allocate_10");
 
-    e.as_contract(&contract_id, || {
-        let start = e.ledger().sequence();
-        for i in 1..=10 {
+    let start = e.ledger().sequence();
+    for i in 1..=10 {
+        e.as_contract(&contract_id, || {
             let _ = AllocationStrategiesContract::allocate(
                 e.clone(),
                 caller.clone(),
@@ -236,10 +238,10 @@ fn benchmark_batch_allocate() {
                 1000_0000000,
                 Strategy::Safe,
             );
-        }
-        let end = e.ledger().sequence();
-        metrics.record_gas(start, end);
-    });
+        });
+    }
+    let end = e.ledger().sequence();
+    metrics.record_gas(start, end);
 
     metrics.print_summary();
 }
