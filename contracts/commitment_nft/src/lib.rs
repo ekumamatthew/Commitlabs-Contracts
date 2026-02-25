@@ -6,7 +6,7 @@ use soroban_sdk::{
 };
 
 // Current storage version for migration checks.
-const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 1;
 
 // ============================================================================
 // Error Types
@@ -126,8 +126,6 @@ pub enum DataKey {
 
 // Events
 // const MINT: soroban_sdk::Symbol = symbol_short!("mint"); // TODO: Use this in mint function
-
-pub const CURRENT_VERSION: u32 = 1;
 
 #[cfg(test)]
 mod tests;
@@ -760,8 +758,10 @@ impl CommitmentNFTContract {
             .set(&DataKey::ReentrancyGuard, &false);
 
         // Emit event
-        e.events()
-            .publish((symbol_short!("Inactive"), token_id), e.ledger().timestamp());
+        e.events().publish(
+            (symbol_short!("Inactive"), token_id),
+            e.ledger().timestamp(),
+        );
 
         Ok(())
     }

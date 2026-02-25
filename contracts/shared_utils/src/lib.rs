@@ -25,9 +25,6 @@ pub mod rate_limiting;
 pub mod storage;
 pub mod time;
 pub mod validation;
-pub mod pausable;
-pub mod storage;
-pub mod time;
 
 #[cfg(test)]
 mod tests;

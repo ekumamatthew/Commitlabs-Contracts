@@ -14,7 +14,6 @@ impl Pausable {
         Symbol::new(env, "paused")
     }
 
-
     /// Check if the contract is currently paused
     ///
     /// # Arguments
@@ -43,9 +42,7 @@ impl Pausable {
         }
 
         // Set paused state
-        e.storage()
-            .instance()
-            .set(&Self::paused_key(e), &true);
+        e.storage().instance().set(&Self::paused_key(e), &true);
 
         // Emit pause event
         Events::emit(e, symbol_short!("Pause"), ());
@@ -64,9 +61,7 @@ impl Pausable {
         }
 
         // Clear paused state
-        e.storage()
-            .instance()
-            .set(&Self::paused_key(e), &false);
+        e.storage().instance().set(&Self::paused_key(e), &false);
 
         // Emit unpause event
         Events::emit(e, symbol_short!("Unpause"), ());
