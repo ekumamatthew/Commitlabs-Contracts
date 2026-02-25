@@ -87,6 +87,7 @@ pub struct CommitmentRules {
     pub commitment_type: String, // "safe", "balanced", "aggressive"
     pub early_exit_penalty: u32,
     pub min_fee_threshold: i128,
+    pub grace_period_days: u32, // <-- Restored to fix the test build error
 }
 
 #[contracttype]
