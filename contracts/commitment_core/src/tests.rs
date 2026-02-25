@@ -34,6 +34,7 @@ fn test_create_commitment_i128_max() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     let amount = i128::MAX;
@@ -67,6 +68,7 @@ fn test_create_commitment_amount_one() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     let amount = 1i128;
