@@ -3,10 +3,40 @@
 use super::*;
 use shared_utils::TimeUtils;
 use soroban_sdk::{
-    symbol_short,
+    contract, contractimpl, symbol_short,
     testutils::{Address as _, Events, Ledger},
+    token::StellarAssetClient,
     vec, Address, Env, IntoVal, String,
 };
+
+#[contract]
+struct MockNftContract;
+
+#[contractimpl]
+impl MockNftContract {
+    pub fn mint(
+        _e: Env,
+        _owner: Address,
+        _commitment_id: String,
+        _duration_days: u32,
+        _max_loss_percent: u32,
+        _commitment_type: String,
+        _initial_amount: i128,
+        _asset_address: Address,
+    ) -> u32 {
+        1
+    }
+}
+
+fn test_rules(e: &Env) -> CommitmentRules {
+    CommitmentRules {
+        duration_days: 30,
+        max_loss_percent: 10,
+        commitment_type: String::from_str(e, "balanced"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 100,
+    }
+}
 
 // Helper function to create a test commitment
 fn create_test_commitment(
@@ -456,6 +486,90 @@ fn test_get_nft_contract() {
         CommitmentCoreContract::get_nft_contract(e.clone())
     });
     assert_eq!(retrieved_nft_contract, nft_contract);
+}
+
+#[test]
+#[should_panic(expected = "Commitment not found")]
+fn test_get_commitment_nonexistent_id_returns_error() {
+    let e = Env::default();
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::get_commitment(
+            e.clone(),
+            String::from_str(&e, "never_created_commitment"),
+        )
+    });
+}
+
+#[test]
+#[should_panic(expected = "Commitment not found")]
+fn test_get_commitment_empty_id_returns_error() {
+    let e = Env::default();
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::get_commitment(e.clone(), String::from_str(&e, ""))
+    });
+}
+
+#[test]
+fn test_get_commitment_returns_created_commitment_data() {
+    let e = Env::default();
+    e.mock_all_auths_allowing_non_root_auth();
+
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let nft_contract = e.register_contract(None, MockNftContract);
+
+    let admin = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let token_admin = Address::generate(&e);
+    let amount = 1_000i128;
+
+    let token_contract = e.register_stellar_asset_contract_v2(token_admin);
+    let asset_address = token_contract.address();
+    let token_admin_client = StellarAssetClient::new(&e, &asset_address);
+    token_admin_client.mint(&owner, &(amount * 2));
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin, nft_contract);
+    });
+
+    let rules = test_rules(&e);
+    let created_id = e.as_contract(&contract_id, || {
+        CommitmentCoreContract::create_commitment(
+            e.clone(),
+            owner.clone(),
+            amount,
+            asset_address.clone(),
+            rules.clone(),
+        )
+    });
+
+    let fetched = e.as_contract(&contract_id, || {
+        CommitmentCoreContract::get_commitment(e.clone(), created_id.clone())
+    });
+
+    assert_eq!(fetched.commitment_id, created_id);
+    assert_eq!(fetched.owner, owner);
+    assert_eq!(fetched.amount, amount);
+    assert_eq!(fetched.current_value, amount);
+    assert_eq!(fetched.asset_address, asset_address);
+    assert_eq!(fetched.status, String::from_str(&e, "active"));
 }
 
 #[test]
