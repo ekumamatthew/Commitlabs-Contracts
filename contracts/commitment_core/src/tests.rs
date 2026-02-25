@@ -3,8 +3,8 @@
 use super::*;
 use soroban_sdk::{
     symbol_short,
-    testutils::{Address as _, Events, Ledger},
-    token, vec, Address, Env, IntoVal, String,
+    testutils::{Address as _, Ledger},
+    Address, Env, String,
 };
 
 // Helper function to create a test commitment
@@ -30,6 +30,7 @@ fn create_test_commitment(
             commitment_type: String::from_str(e, "balanced"),
             early_exit_penalty: 10,
             min_fee_threshold: 1000,
+            grace_period_days: 0,
         },
         amount,
         asset_address: Address::generate(e),
@@ -101,6 +102,7 @@ fn test_create_commitment_valid() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     let _amount = 1000i128;
@@ -124,6 +126,7 @@ fn test_validate_rules_invalid_duration() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     // Test invalid duration - should panic
@@ -144,6 +147,7 @@ fn test_validate_rules_invalid_max_loss() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     // Test invalid max loss percent - should panic
@@ -164,6 +168,7 @@ fn test_validate_rules_invalid_type() {
         commitment_type: String::from_str(&e, "invalid_type"), // Invalid type
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     // Test invalid commitment type - should panic
@@ -198,6 +203,7 @@ fn test_create_commitment_duration_zero() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     e.as_contract(&contract_id, || {
@@ -227,6 +233,7 @@ fn test_create_commitment_max_loss_over_100() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     e.as_contract(&contract_id, || {
@@ -256,6 +263,7 @@ fn test_create_commitment_amount_zero() {
             commitment_type: String::from_str(&e, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100,
+            grace_period_days: 0,
         };
 
     e.as_contract(&contract_id, || {
@@ -285,6 +293,7 @@ fn test_create_commitment_amount_negative() {
             commitment_type: String::from_str(&e, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100,
+            grace_period_days: 0,
         };
 
     e.as_contract(&contract_id, || {
@@ -314,6 +323,7 @@ fn test_create_commitment_invalid_type() {
         commitment_type: String::from_str(&e, "invalid"), // Invalid type
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     e.as_contract(&contract_id, || {
@@ -342,6 +352,7 @@ fn test_create_commitment_valid_rules() {
             commitment_type: String::from_str(&e, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100,
+            grace_period_days: 0,
         };
 
     // This will fail at NFT minting since we don't have a real NFT contract,
@@ -807,6 +818,7 @@ fn test_create_commitment_event() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
     // Note: This might panic if mock token transfers are not set up, but we are testing events.
@@ -857,6 +869,7 @@ fn test_update_value_event() {
         
         CommitmentCoreContract::update_value(
             e.clone(),
+            updater.clone(),
             commitment_id.clone(),
             1100,
         );
@@ -909,12 +922,14 @@ fn test_update_value_rate_limit_enforced() {
         // First call — allowed
         CommitmentCoreContract::update_value(
             e.clone(),
+            updater.clone(),
             commitment_id.clone(),
             100,
         );
         // Second call — should hit rate limit and panic
         CommitmentCoreContract::update_value(
             e.clone(),
+            updater.clone(),
             commitment_id.clone(),
             200,
         );
@@ -986,6 +1001,7 @@ fn create_test_commitment_with_penalty(
             commitment_type: String::from_str(e, "balanced"),
             early_exit_penalty,
             min_fee_threshold: 1000,
+            grace_period_days: 0,
         },
         amount,
         asset_address: Address::generate(e),
@@ -1443,6 +1459,7 @@ fn test_update_value_unauthorized_caller() {
         // unauthorized is NOT admin or in allocation contract, so this must panic
         CommitmentCoreContract::update_value(
             e.clone(),
+            unauthorized.clone(),
             String::from_str(&e, "test_id"),
             900,
         );
@@ -1469,7 +1486,7 @@ fn test_update_value_no_violation() {
     });
 
     e.as_contract(&contract_id, || {
-        CommitmentCoreContract::update_value(e.clone(), String::from_str(&e, "test_id"), 950);
+        CommitmentCoreContract::update_value(e.clone(), admin.clone(), String::from_str(&e, "test_id"), 950);
     });
 
     let client = CommitmentCoreContractClient::new(&e, &contract_id);
@@ -1555,6 +1572,7 @@ fn test_create_commitment_requires_positive_amount() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
     
     // Try to create with zero amount - should fail at validation
@@ -1600,7 +1618,7 @@ fn test_create_commitment_zero_address_fails() {
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
-        // Removed `grace_period_days` because it is not defined in lib.rs!
+        grace_period_days: 0,
     };
 
     client.create_commitment(&zero_address, &1000i128, &asset_address, &rules);
