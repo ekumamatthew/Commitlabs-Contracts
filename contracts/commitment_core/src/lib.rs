@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, log, symbol_short, token, Address, Env,
-    IntoVal, String, Symbol, TryFromVal, Vec,
+    IntoVal, String, Symbol, Vec,
 };
 use shared_utils::{SafeMath, TimeUtils, Validation, RateLimiter, emit_error_event, Pausable};
 
@@ -117,27 +117,20 @@ pub enum DataKey {
 }
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
-
-// Problem: address.to_string() does not exist on soroban_sdk::Address in a
-// #![no_std] contract (no Display/ToString impl at the call site), causing E0599.
-// Comparing its result with soroban_sdk::String also caused a cascading E0599.
 //
-// Fix: construct the known zero-address via XDR and compare using Address's
-// derived PartialEq, which is well-defined in soroban-sdk.
+// Fix for E0283: annotate the intermediate value as soroban_sdk::Val so the
+// compiler knows which IntoVal / TryFromVal impl to pick (Val, not AddressObject).
 
 fn is_zero_address(e: &Env, address: &Address) -> bool {
     use soroban_sdk::xdr::{AccountId, PublicKey, ScAddress, Uint256};
-    use soroban_sdk::TryFromVal;
 
-    // GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
-    // = Stellar strkey for an Ed25519 public key of 32 zero bytes.
     let zero_xdr = ScAddress::Account(AccountId(
         PublicKey::PublicKeyTypeEd25519(Uint256([0u8; 32])),
     ));
 
-    // IntoVal<Env, Val> is already in scope (imported at the top of lib.rs).
-    // TryFromVal<Env, Val> is added locally above.
-    match Address::try_from_val(e, &zero_xdr.into_val(e)) {
+    // Explicitly type the intermediate as Val to disambiguate the two TryFromVal impls.
+    let val: soroban_sdk::Val = zero_xdr.into_val(e);
+    match Address::try_from_val(e, &val) {
         Ok(zero_addr) => *address == zero_addr,
         Err(_) => false,
     }
