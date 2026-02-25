@@ -238,9 +238,13 @@ fn test_oracle_remove_feeder() {
     let feeder = Address::generate(&harness.env);
     let asset = Address::generate(&harness.env);
 
-    // Add and then remove feeder
+    // Add feeder
     harness.env.as_contract(&harness.contracts.mock_oracle, || {
         MockOracleContract::add_feeder(harness.env.clone(), admin.clone(), feeder.clone()).unwrap();
+    });
+
+    // Remove feeder
+    harness.env.as_contract(&harness.contracts.mock_oracle, || {
         MockOracleContract::remove_feeder(harness.env.clone(), admin.clone(), feeder.clone())
             .unwrap();
     });

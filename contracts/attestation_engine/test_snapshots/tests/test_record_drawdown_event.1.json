@@ -259,7 +259,7 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "ATTS"
+                  "symbol": "Attestations"
                 },
                 {
                   "string": "test_id"
@@ -279,7 +279,7 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "ATTS"
+                      "symbol": "Attestations"
                     },
                     {
                       "string": "test_id"
