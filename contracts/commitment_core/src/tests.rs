@@ -1590,7 +1590,9 @@ fn test_create_commitment_zero_address_fails() {
 
     // Construct zero address natively using the environment (No XDR needed!)
     let zero_str = String::from_str(&e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
-    let zero_address = Address::from_string(&e, &zero_str);
+    
+    // THE FIX: Removed `&e, ` here. It only takes 1 argument!
+    let zero_address = Address::from_string(&zero_str);
 
     let rules = CommitmentRules {
         duration_days: 30,
