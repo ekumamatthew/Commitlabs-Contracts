@@ -244,6 +244,102 @@ fn test_mint_without_initialize_fails() {
 }
 
 // ============================================
+// Mint initial_amount validation tests
+// ============================================
+
+#[test]
+fn test_mint_zero_amount_rejected() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let result = client.try_mint(
+        &owner,
+        &String::from_str(&e, "zero_amount"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &0i128,
+        &asset_address,
+        &5,
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+}
+
+#[test]
+fn test_mint_negative_amount_rejected() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let result = client.try_mint(
+        &owner,
+        &String::from_str(&e, "negative_amount"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &-100i128,
+        &asset_address,
+        &5,
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+}
+
+#[test]
+fn test_mint_min_valid_amount() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "min_amount"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &1i128,
+        &asset_address,
+        &5,
+    );
+
+    let nft = client.get_metadata(&token_id);
+    assert_eq!(nft.metadata.initial_amount, 1);
+}
+
+#[test]
+fn test_mint_max_amount_no_overflow() {
+    let e = Env::default();
+    let (admin, client) = setup_contract(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    client.initialize(&admin);
+
+    let token_id = client.mint(
+        &owner,
+        &String::from_str(&e, "max_amount"),
+        &30,
+        &10,
+        &String::from_str(&e, "balanced"),
+        &i128::MAX,
+        &asset_address,
+        &5,
+    );
+
+    let nft = client.get_metadata(&token_id);
+    assert_eq!(nft.metadata.initial_amount, i128::MAX);
+}
+
+// ============================================
 // get_metadata Tests
 // ============================================
 
