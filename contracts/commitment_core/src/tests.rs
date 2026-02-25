@@ -6,6 +6,7 @@ use soroban_sdk::{
     testutils::{Address as _, Events, Ledger},
     vec, Address, Env, IntoVal, String,
 };
+use shared_utils::TimeUtils;
 
 // Helper function to create a test commitment
 fn create_test_commitment(
@@ -243,6 +244,59 @@ fn test_create_commitment_amount_zero() {
     e.as_contract(&contract_id, || {
         CommitmentCoreContract::create_commitment(e.clone(), owner, 0, asset_address, rules); // Invalid amount
     });
+}
+
+#[test]
+#[should_panic(expected = "Duration would cause expiration timestamp overflow")]
+fn test_create_commitment_expiration_overflow() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
+    });
+
+    // Set ledger timestamp so created_at + duration_days * 86400 overflows u64
+    e.ledger().with_mut(|l| {
+        l.timestamp = u64::MAX - 50_000;
+    });
+
+    let rules = CommitmentRules {
+        duration_days: 1,
+        max_loss_percent: 10,
+        commitment_type: String::from_str(&e, "safe"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 100,
+    };
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::create_commitment(
+            e.clone(),
+            owner,
+            1000,
+            asset_address,
+            rules,
+        );
+    });
+}
+
+#[test]
+fn test_checked_calculate_expiration_max_duration_success() {
+    let e = Env::default();
+    e.ledger().with_mut(|l| {
+        l.timestamp = 1000;
+    });
+    let max_days = (u64::MAX - 1000) / 86400;
+    let duration_days = max_days.min(u32::MAX as u64) as u32;
+    let expiration = TimeUtils::checked_calculate_expiration(&e, duration_days);
+    assert!(expiration.is_some());
+    assert_eq!(expiration.unwrap(), 1000 + (duration_days as u64 * 86400));
 }
 
 #[test]
@@ -899,6 +953,77 @@ fn test_settle_event() {
     // This will panic because commitment doesn't exist
     // The test verifies that the function properly validates preconditions
     client.settle(&commitment_id);
+}
+
+/// settle must only succeed when commitment has reached expiration (Issue #115).
+#[test]
+#[should_panic(expected = "Commitment has not expired yet")]
+fn test_settle_rejects_when_not_expired() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let commitment_id = "settle_not_expired";
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
+    });
+
+    let created_at = 1000u64;
+    let duration_days = 30u32;
+    let expires_at = created_at + (duration_days as u64 * 86400);
+    let commitment = create_test_commitment(
+        &e,
+        commitment_id,
+        &owner,
+        1000,
+        1000,
+        10,
+        duration_days,
+        created_at,
+    );
+    store_commitment(&e, &contract_id, &commitment);
+
+    e.ledger().with_mut(|l| {
+        l.timestamp = expires_at - 1;
+    });
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::settle(
+            e.clone(),
+            String::from_str(&e, commitment_id),
+        );
+    });
+}
+
+/// early_exit by owner succeeds; by non-owner (e.g. admin) fails (Issue #116).
+#[test]
+#[should_panic(expected = "Unauthorized: caller not allowed")]
+fn test_early_exit_by_admin_not_owner_fails() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register_contract(None, CommitmentCoreContract);
+    let admin = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let nft_contract = Address::generate(&e);
+    let commitment_id = "early_exit_admin_not_owner";
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::initialize(e.clone(), admin.clone(), nft_contract.clone());
+    });
+
+    let commitment = create_test_commitment(&e, commitment_id, &owner, 1000, 1000, 10, 30, 1000);
+    store_commitment(&e, &contract_id, &commitment);
+
+    e.as_contract(&contract_id, || {
+        CommitmentCoreContract::early_exit(
+            e.clone(),
+            String::from_str(&e, commitment_id),
+            admin.clone(),
+        );
+    });
 }
 
 #[test]

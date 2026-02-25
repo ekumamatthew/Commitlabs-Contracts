@@ -1293,6 +1293,31 @@ fn test_settle() {
     assert_eq!(data, e.ledger().timestamp());
 }
 
+/// Mint with duration that would cause expires_at to overflow u64 (Issue #118).
+#[test]
+#[should_panic(expected = "Error(Contract, #20)")] // ExpirationOverflow
+fn test_mint_expiration_overflow() {
+    let e = Env::default();
+    let (_admin, client, _core_id) = setup_contract_with_core(&e);
+    let owner = Address::generate(&e);
+    let asset_address = Address::generate(&e);
+
+    e.ledger().with_mut(|li| {
+        li.timestamp = u64::MAX - 50_000;
+    });
+
+    let _ = client.mint(
+        &owner,
+        &String::from_str(&e, "overflow_commitment"),
+        &1,
+        &10,
+        &String::from_str(&e, "safe"),
+        &1000,
+        &asset_address,
+        &5,
+    );
+}
+
 #[test]
 #[should_panic(expected = "Error(Contract, #9)")] // NotExpired
 fn test_settle_not_expired() {
