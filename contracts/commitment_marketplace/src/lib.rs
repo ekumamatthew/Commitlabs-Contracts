@@ -1115,6 +1115,3 @@ impl CommitmentMarketplace {
         auctions
     }
 }
-
-// #[cfg(all(test, feature = "benchmark"))]
-// mod benchmarks;

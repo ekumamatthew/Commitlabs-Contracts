@@ -1,0 +1,267 @@
+   Compiling typenum v1.19.0
+   Compiling generic-array v0.14.9
+   Compiling zeroize v1.8.2
+   Compiling cfg-if v1.0.4
+   Compiling libc v0.2.180
+   Compiling subtle v2.6.1
+   Compiling const-oid v0.9.6
+   Compiling serde_core v1.0.228
+   Compiling der v0.7.10
+   Compiling crypto-common v0.1.6
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling getrandom v0.2.17
+   Compiling rand_core v0.6.4
+   Compiling num-traits v0.2.19
+   Compiling base16ct v0.2.0
+   Compiling ff v0.13.1
+   Compiling sec1 v0.7.3
+   Compiling group v0.13.0
+   Compiling crypto-bigint v0.5.5
+   Compiling signature v2.2.0
+   Compiling serde v1.0.228
+   Compiling paste v1.0.15
+   Compiling zerocopy v0.8.33
+   Compiling libm v0.2.15
+   Compiling cpufeatures v0.2.17
+   Compiling hmac v0.12.1
+   Compiling thiserror v1.0.69
+   Compiling rfc6979 v0.4.0
+   Compiling elliptic-curve v0.13.8
+   Compiling hex v0.4.3
+   Compiling sha2 v0.10.9
+   Compiling curve25519-dalek v4.1.3
+   Compiling stellar-strkey v0.0.8
+   Compiling stellar-xdr v21.2.0
+   Compiling derive_arbitrary v1.3.2
+   Compiling hashbrown v0.14.5
+   Compiling equivalent v1.0.2
+   Compiling base32 v0.4.0
+   Compiling memchr v2.7.6
+   Compiling indexmap-nostd v0.4.0
+   Compiling downcast-rs v1.2.1
+   Compiling object v0.36.7
+   Compiling wasmparser-nostd v0.100.2
+   Compiling wasmi_core v0.13.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling indexmap v2.2.6
+   Compiling arbitrary v1.3.2
+   Compiling serde_with v3.16.1
+   Compiling ecdsa v0.16.9
+   Compiling soroban-env-common v21.2.1
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling gimli v0.31.1
+   Compiling escape-bytes v0.1.1
+   Compiling spin v0.9.8
+   Compiling adler2 v2.0.1
+   Compiling smallvec v1.15.1
+   Compiling wasmi_arena v0.4.1
+   Compiling semver v1.0.27
+   Compiling base64 v0.13.1
+   Compiling soroban-wasmi v0.31.1-soroban.20.0.1
+   Compiling addr2line v0.24.2
+   Compiling wasmparser v0.116.1
+   Compiling miniz_oxide v0.8.9
+   Compiling rand_chacha v0.3.1
+   Compiling primeorder v0.13.6
+   Compiling ed25519 v2.2.3
+   Compiling zmij v1.0.16
+   Compiling ethnum v1.5.2
+   Compiling keccak v0.1.5
+   Compiling soroban-env-host v21.2.1
+   Compiling rustc-demangle v0.1.27
+   Compiling static_assertions v1.1.0
+   Compiling sha3 v0.10.8
+   Compiling backtrace v0.3.74
+   Compiling ed25519-dalek v2.1.1
+   Compiling p256 v0.13.2
+   Compiling rand v0.8.5
+   Compiling k256 v0.13.4
+   Compiling num-integer v0.1.46
+   Compiling soroban-builtin-sdk-macros v21.2.1
+   Compiling soroban-sdk-macros v21.7.7
+   Compiling serde_json v1.0.149
+   Compiling itoa v1.0.17
+   Compiling hex-literal v0.4.1
+   Compiling soroban-sdk v21.7.7
+   Compiling ctor v0.2.9
+   Compiling soroban-ledger-snapshot v21.7.7
+   Compiling shared_utils v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/shared_utils)
+   Compiling version-system v0.0.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/version-system)
+   Compiling commitment_core v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/commitment_core)
+   Compiling mock_oracle v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/mock_oracle)
+   Compiling attestation_engine v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/attestation_engine)
+   Compiling commitment_nft v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/commitment_nft)
+warning: constant `GRACE_PERIOD_SECONDS` is never used
+  --> contracts/commitment_core/src/lib.rs:66:7
+   |
+66 | const GRACE_PERIOD_SECONDS: u64 = 3600;
+   |       ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `require_authorized_updater` is never used
+   --> contracts/commitment_core/src/lib.rs:234:4
+    |
+234 | fn require_authorized_updater(e: &Env, caller: &Address) {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling commitment_interface v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/commitment_interface)
+   Compiling price_oracle v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/price_oracle)
+   Compiling time_lock v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/time_lock)
+warning: `commitment_core` (lib) generated 2 warnings
+   Compiling commitment_transformation v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/commitment_transformation)
+   Compiling allocation_logic v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/allocation_logic)
+   Compiling commitment-marketplace v0.1.0 (/home/frankhood/Drips/Commitlabs-Contracts/contracts/commitment_marketplace)
+error: cannot find macro `format` in this scope
+   --> contracts/attestation_engine/src/benchmarks.rs:176:55
+    |
+176 | ...   let commitment_id = String::from_str(&e, &format!("commitment_{}"...
+    |                                                 ^^^^^^
+
+error[E0308]: mismatched types
+  --> contracts/attestation_engine/src/benchmarks.rs:28:27
+   |
+28 |         self.gas_before = before;
+   |         ---------------   ^^^^^^ expected `u32`, found `u64`
+   |         |
+   |         expected due to the type of this binding
+
+error[E0308]: mismatched types
+  --> contracts/attestation_engine/src/benchmarks.rs:29:26
+   |
+29 |         self.gas_after = after;
+   |         --------------   ^^^^^ expected `u32`, found `u64`
+   |         |
+   |         expected due to the type of this binding
+
+error[E0308]: arguments to this method are incorrect
+  --> contracts/attestation_engine/src/benchmarks.rs:69:17
+   |
+69 |         metrics.record_gas(start, end);
+   |                 ^^^^^^^^^^ -----  --- expected `u64`, found `u32`
+   |                            |
+   |                            expected `u64`, found `u32`
+   |
+note: method defined here
+  --> contracts/attestation_engine/src/benchmarks.rs:27:8
+   |
+27 |     fn record_gas(&mut self, before: u64, after: u64) {
+   |        ^^^^^^^^^^            -----------  ----------
+help: you can convert a `u32` to a `u64`
+   |
+69 |         metrics.record_gas(start.into(), end);
+   |                                 +++++++
+help: you can convert a `u32` to a `u64`
+   |
+69 |         metrics.record_gas(start, end.into());
+   |                                      +++++++
+
+error[E0308]: arguments to this method are incorrect
+   --> contracts/attestation_engine/src/benchmarks.rs:105:17
+    |
+105 |         metrics.record_gas(start, end);
+    |                 ^^^^^^^^^^ -----  --- expected `u64`, found `u32`
+    |                            |
+    |                            expected `u64`, found `u32`
+    |
+note: method defined here
+   --> contracts/attestation_engine/src/benchmarks.rs:27:8
+    |
+ 27 |     fn record_gas(&mut self, before: u64, after: u64) {
+    |        ^^^^^^^^^^            -----------  ----------
+help: you can convert a `u32` to a `u64`
+    |
+105 |         metrics.record_gas(start.into(), end);
+    |                                 +++++++
+help: you can convert a `u32` to a `u64`
+    |
+105 |         metrics.record_gas(start, end.into());
+    |                                      +++++++
+
+error[E0308]: arguments to this method are incorrect
+   --> contracts/attestation_engine/src/benchmarks.rs:141:17
+    |
+141 |         metrics.record_gas(start, end);
+    |                 ^^^^^^^^^^ -----  --- expected `u64`, found `u32`
+    |                            |
+    |                            expected `u64`, found `u32`
+    |
+note: method defined here
+   --> contracts/attestation_engine/src/benchmarks.rs:27:8
+    |
+ 27 |     fn record_gas(&mut self, before: u64, after: u64) {
+    |        ^^^^^^^^^^            -----------  ----------
+help: you can convert a `u32` to a `u64`
+    |
+141 |         metrics.record_gas(start.into(), end);
+    |                                 +++++++
+help: you can convert a `u32` to a `u64`
+    |
+141 |         metrics.record_gas(start, end.into());
+    |                                      +++++++
+
+error[E0308]: arguments to this method are incorrect
+   --> contracts/attestation_engine/src/benchmarks.rs:160:17
+    |
+160 |         metrics.record_gas(start, end);
+    |                 ^^^^^^^^^^ -----  --- expected `u64`, found `u32`
+    |                            |
+    |                            expected `u64`, found `u32`
+    |
+note: method defined here
+   --> contracts/attestation_engine/src/benchmarks.rs:27:8
+    |
+ 27 |     fn record_gas(&mut self, before: u64, after: u64) {
+    |        ^^^^^^^^^^            -----------  ----------
+help: you can convert a `u32` to a `u64`
+    |
+160 |         metrics.record_gas(start.into(), end);
+    |                                 +++++++
+help: you can convert a `u32` to a `u64`
+    |
+160 |         metrics.record_gas(start, end.into());
+    |                                      +++++++
+
+error[E0308]: arguments to this method are incorrect
+   --> contracts/attestation_engine/src/benchmarks.rs:192:17
+    |
+192 |         metrics.record_gas(start, end);
+    |                 ^^^^^^^^^^ -----  --- expected `u64`, found `u32`
+    |                            |
+    |                            expected `u64`, found `u32`
+    |
+note: method defined here
+   --> contracts/attestation_engine/src/benchmarks.rs:27:8
+    |
+ 27 |     fn record_gas(&mut self, before: u64, after: u64) {
+    |        ^^^^^^^^^^            -----------  ----------
+help: you can convert a `u32` to a `u64`
+    |
+192 |         metrics.record_gas(start.into(), end);
+    |                                 +++++++
+help: you can convert a `u32` to a `u64`
+    |
+192 |         metrics.record_gas(start, end.into());
+    |                                      +++++++
+
+warning: unused import: `Ledger`
+ --> contracts/attestation_engine/src/benchmarks.rs:6:31
+  |
+6 |     testutils::{Address as _, Ledger},
+  |                               ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `gas_used`
+  --> contracts/attestation_engine/src/benchmarks.rs:33:13
+   |
+33 |         let gas_used = if self.gas_after > self.gas_before {
+   |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_gas_used`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0308`.
+warning: `attestation_engine` (lib test) generated 2 warnings
+error: could not compile `attestation_engine` (lib test) due to 8 previous errors; 2 warnings emitted
+warning: build failed, waiting for other jobs to finish...

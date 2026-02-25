@@ -22,6 +22,20 @@ impl TimeUtils {
         days as u64 * 24 * 60 * 60
     }
 
+    /// Convert days to seconds with overflow check.
+    /// Returns `None` if `days * 86400` would overflow u64.
+    pub fn checked_days_to_seconds(days: u32) -> Option<u64> {
+        (days as u64).checked_mul(24 * 60 * 60)
+    }
+
+    /// Calculate expiration timestamp using checked arithmetic.
+    /// Returns `None` if `current_time + duration_days * 86400` would overflow u64.
+    pub fn checked_calculate_expiration(e: &Env, duration_days: u32) -> Option<u64> {
+        let current_time = Self::now(e);
+        let duration_seconds = Self::checked_days_to_seconds(duration_days)?;
+        current_time.checked_add(duration_seconds)
+    }
+
     /// Convert hours to seconds
     ///
     /// # Arguments
@@ -193,5 +207,40 @@ mod tests {
         assert_eq!(TimeUtils::seconds_to_days(86400), 1);
         assert_eq!(TimeUtils::seconds_to_days(172800), 2);
         assert_eq!(TimeUtils::seconds_to_days(3600), 0); // Less than a day
+    }
+
+    #[test]
+    fn test_checked_days_to_seconds() {
+        assert_eq!(TimeUtils::checked_days_to_seconds(1), Some(86400));
+        assert_eq!(TimeUtils::checked_days_to_seconds(30), Some(2592000));
+        // u32::MAX days still fits in u64
+        assert!(TimeUtils::checked_days_to_seconds(u32::MAX).is_some());
+    }
+
+    #[test]
+    fn test_checked_calculate_expiration_overflow() {
+        let env = Env::default();
+        // Set ledger timestamp near u64::MAX so that adding any meaningful duration overflows
+        env.ledger().with_mut(|l| {
+            l.timestamp = u64::MAX - 1000;
+        });
+        // duration_days that would push expires_at past u64::MAX
+        let expiration = TimeUtils::checked_calculate_expiration(&env, 1);
+        assert_eq!(expiration, None);
+    }
+
+    #[test]
+    fn test_checked_calculate_expiration_max_allowed() {
+        let env = Env::default();
+        env.ledger().with_mut(|l| {
+            l.timestamp = 1000;
+        });
+        // Max duration that fits: (u64::MAX - 1000) / 86400
+        let max_days = (u64::MAX - 1000) / 86400;
+        let duration_days = max_days.min(u32::MAX as u64) as u32;
+        let expiration = TimeUtils::checked_calculate_expiration(&env, duration_days);
+        assert!(expiration.is_some());
+        let exp = expiration.unwrap();
+        assert_eq!(exp, 1000 + (duration_days as u64 * 86400));
     }
 }

@@ -7,6 +7,9 @@ use soroban_sdk::{
     Symbol, Vec,
 };
 
+// Current storage version for migration checks.
+const CURRENT_VERSION: u32 = 1;
+
 // ============================================================================
 // ERROR CODES - Error Handling
 // ============================================================================
@@ -32,8 +35,6 @@ pub enum Error {
     AlreadyMigrated = 17,
 }
 
-const CURRENT_VERSION: u32 = 1;
-
 // ============================================================================
 // DATA STRUCTURES
 // ============================================================================
@@ -55,7 +56,7 @@ pub enum RiskLevel {
 }
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Pool {
     pub pool_id: u32,
     pub risk_level: RiskLevel,
@@ -68,7 +69,7 @@ pub struct Pool {
 }
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Allocation {
     pub commitment_id: u64,
     pub pool_id: u32,
@@ -77,7 +78,7 @@ pub struct Allocation {
 }
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AllocationSummary {
     pub commitment_id: u64,
     pub strategy: Strategy,
