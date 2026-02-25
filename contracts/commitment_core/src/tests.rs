@@ -1588,13 +1588,10 @@ fn test_create_commitment_zero_address_fails() {
 
     client.initialize(&admin, &nft_contract);
 
-    // Construct the Stellar zero account (GAAA...WHF) via XDR so we don't rely on
-    // Address::from_string, whose exact signature varies between soroban-sdk versions.
-    let zero_xdr = soroban_sdk::xdr::ScAddress::Account(soroban_sdk::xdr::AccountId(
-        soroban_sdk::xdr::PublicKey::PublicKeyTypeEd25519(soroban_sdk::xdr::Uint256([0u8; 32])),
-    ));
-    let zero_address: Address =
-        Address::try_from_val(&e, &zero_xdr.into_val(&e)).expect("zero address construction");
+    // Address::from_string takes only &soroban_sdk::String (no &Env).
+    let zero_address = Address::from_string(
+        &String::from_str(&e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"),
+    );
 
     let rules = CommitmentRules {
         duration_days: 30,
@@ -1605,6 +1602,5 @@ fn test_create_commitment_zero_address_fails() {
         grace_period_days: 0,
     };
 
-    // Should panic with "Zero address is not allowed"
     client.create_commitment(&zero_address, &1000i128, &asset_address, &rules);
 }
