@@ -71,6 +71,7 @@ impl IntegrationTestFixture {
             commitment_type: String::from_str(&self.env, "safe"),
             early_exit_penalty: 5,
             min_fee_threshold: 100_0000000,
+            grace_period_days: 0,
         }
     }
 }
@@ -130,6 +131,7 @@ fn test_commitment_value_update_with_health_tracking() {
         commitment_type: String::from_str(&fixture.env, "balanced"),
         early_exit_penalty: 5,
         min_fee_threshold: 100_0000000,
+            grace_period_days: 0,
     };
 
     // Create commitment
@@ -213,6 +215,7 @@ fn test_early_exit_flow_end_to_end() {
         commitment_type: String::from_str(&fixture.env, "aggressive"),
         early_exit_penalty: 10,
         min_fee_threshold: 100_0000000,
+            grace_period_days: 0,
     };
 
     // Create commitment

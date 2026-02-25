@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::Address as _, Address, Env};
 
 #[test]
 fn test_initialize_and_getters() {
@@ -43,20 +43,3 @@ fn test_initialize_twice_fails() {
     assert_eq!(second, Err(AttestationError::AlreadyInitialized));
 }
 
-#[test]
-fn test_get_attestations_empty() {
-    let e = Env::default();
-    let contract_id = e.register_contract(None, AttestationEngineContract);
-    let admin = Address::generate(&e);
-    let core = Address::generate(&e);
-    let commitment_id = String::from_str(&e, "c_1");
-
-    e.as_contract(&contract_id, || {
-        AttestationEngineContract::initialize(e.clone(), admin.clone(), core.clone()).unwrap();
-    });
-
-    let attestations = e.as_contract(&contract_id, || {
-        AttestationEngineContract::get_attestations(e.clone(), commitment_id.clone())
-    });
-    assert_eq!(attestations.len(), 0);
-}

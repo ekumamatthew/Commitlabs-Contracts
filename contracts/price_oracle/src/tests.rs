@@ -79,7 +79,7 @@ fn test_set_price_whitelisted() {
     let data = client.get_price(&asset);
     assert_eq!(data.price, 1000_00000000);
     assert_eq!(data.decimals, 8);
-    assert!(data.updated_at >= 0);
+    assert_eq!(data.updated_at, e.ledger().timestamp());
 }
 
 #[test]
