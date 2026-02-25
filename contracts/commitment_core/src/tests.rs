@@ -1566,6 +1566,13 @@ fn test_create_commitment_requires_positive_amount() {
 // Issue #140: Zero Address Validation
 // ============================================
 
+
+//
+// Problem: Address::from_string(&String::from_str(&e, "GAAA..."))
+//   - If Address::from_string exists, its signature is (&Env, &soroban_sdk::String)
+//     so the missing &e is the bug (E0599 — no matching method).
+//   - Using XDR construction is cleaner and version-independent.
+
 #[test]
 #[should_panic(expected = "Zero address is not allowed")]
 fn test_create_commitment_zero_address_fails() {
@@ -1578,18 +1585,26 @@ fn test_create_commitment_zero_address_fails() {
     let admin = Address::generate(&e);
     let nft_contract = Address::generate(&e);
     let asset_address = Address::generate(&e);
-    
+
     client.initialize(&admin, &nft_contract);
 
-    let zero_address = Address::from_string(&String::from_str(&e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"));
-    
+    // Construct the Stellar zero account (GAAA...WHF) via XDR so we don't rely on
+    // Address::from_string, whose exact signature varies between soroban-sdk versions.
+    let zero_xdr = soroban_sdk::xdr::ScAddress::Account(soroban_sdk::xdr::AccountId(
+        soroban_sdk::xdr::PublicKey::PublicKeyTypeEd25519(soroban_sdk::xdr::Uint256([0u8; 32])),
+    ));
+    let zero_address: Address =
+        Address::try_from_val(&e, &zero_xdr.into_val(&e)).expect("zero address construction");
+
     let rules = CommitmentRules {
         duration_days: 30,
         max_loss_percent: 10,
         commitment_type: String::from_str(&e, "safe"),
         early_exit_penalty: 5,
         min_fee_threshold: 100,
+        grace_period_days: 0,
     };
 
+    // Should panic with "Zero address is not allowed"
     client.create_commitment(&zero_address, &1000i128, &asset_address, &rules);
 }
