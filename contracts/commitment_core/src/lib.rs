@@ -124,16 +124,17 @@ pub enum DataKey {
 fn is_zero_address(e: &Env, address: &Address) -> bool {
     use soroban_sdk::xdr::{AccountId, PublicKey, ScAddress, Uint256};
 
+    // GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
+    // = Ed25519 public key of 32 zero bytes.
     let zero_xdr = ScAddress::Account(AccountId(
         PublicKey::PublicKeyTypeEd25519(Uint256([0u8; 32])),
     ));
 
-    // Explicitly type the intermediate as Val to disambiguate the two TryFromVal impls.
+    // Explicit Val annotation resolves the into_val ambiguity (E0283).
+    // from_val panics on invalid input, but our XDR is always valid.
     let val: soroban_sdk::Val = zero_xdr.into_val(e);
-    match Address::try_from_val(e, &val) {
-        Ok(zero_addr) => *address == zero_addr,
-        Err(_) => false,
-    }
+    let zero_addr = Address::from_val(e, &val);
+    *address == zero_addr
 }
 
 /// Transfer assets from owner to contract
