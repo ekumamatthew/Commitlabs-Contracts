@@ -9,6 +9,7 @@ use soroban_sdk::{
 const CURRENT_VERSION: u32 = 1;
 
 // Issue #139: String parameter constraints
+#[allow(dead_code)]
 const MAX_COMMITMENT_ID_LENGTH: u32 = 256;
 
 // ============================================================================
@@ -206,6 +207,7 @@ impl CommitmentNFTContract {
     }
 
     /// Validate commitment_id: must be non-empty and not exceed MAX_COMMITMENT_ID_LENGTH
+    #[allow(dead_code)]
     fn is_valid_commitment_id(_e: &Env, commitment_id: &String) -> bool {
         let len = commitment_id.len();
         len > 0 && len <= MAX_COMMITMENT_ID_LENGTH
