@@ -63,6 +63,18 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "AllCommitmentIds"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "vec": []
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "NftContract"
                             }
                           ]

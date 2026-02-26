@@ -108,6 +108,19 @@ pub struct AttestParams {
     pub is_compliant: bool,
 }
 
+/// Paginated result for get_attestations_page.
+/// Ordering is by timestamp (oldest first, same as insertion order).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationsPage {
+    pub attestations: Vec<Attestation>,
+    /// Next offset to use for the following page; 0 means no more pages.
+    pub next_offset: u32,
+}
+
+/// Maximum number of attestations returned per page (avoids exceeding Soroban limits).
+pub const MAX_PAGE_SIZE: u32 = 100;
+
 // Import Commitment types from commitment_core (define locally for cross-contract calls)
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -821,6 +834,55 @@ impl AttestationEngineContract {
             .unwrap_or_else(|| Vec::new(&e))
     }
 
+    /// Get a page of attestations for a commitment (ordered by timestamp, oldest first).
+    /// Use this for large lists to stay within Soroban limits.
+    ///
+    /// # Arguments
+    /// * `commitment_id` - The commitment to list attestations for
+    /// * `offset` - Index to start from (0-based)
+    /// * `limit` - Max number of attestations to return (capped at MAX_PAGE_SIZE)
+    ///
+    /// # Returns
+    /// * `attestations` - Slice of attestations for this page
+    /// * `next_offset` - Offset for the next page; 0 if no more pages
+    pub fn get_attestations_page(
+        e: Env,
+        commitment_id: String,
+        offset: u32,
+        limit: u32,
+    ) -> AttestationsPage {
+        let key = DataKey::Attestations(commitment_id.clone());
+        let all: Vec<Attestation> = e
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(&e));
+
+        let cap = limit.min(MAX_PAGE_SIZE);
+        let len = all.len();
+
+        if offset >= len || cap == 0 {
+            return AttestationsPage {
+                attestations: Vec::new(&e),
+                next_offset: 0,
+            };
+        }
+
+        let end = (offset + cap).min(len);
+        let mut page = Vec::new(&e);
+        let mut i = offset;
+        while i < end {
+            page.push_back(all.get(i).unwrap());
+            i += 1;
+        }
+        let next_offset = if end < len { end } else { 0 };
+
+        AttestationsPage {
+            attestations: page,
+            next_offset,
+        }
+    }
+
     /// Get attestation count for a commitment
     pub fn get_attestation_count(e: Env, commitment_id: String) -> u64 {
         let key = DataKey::AttestationCounter(commitment_id);
@@ -886,6 +948,13 @@ impl AttestationEngineContract {
     }
 
     /// Verify commitment compliance
+    /// Verify commitment compliance
+    /// 
+    /// Returns compliance status based on commitment state:
+    /// - "settled": true (compliant until settlement)
+    /// - "violated": false (rule violation occurred)
+    /// - "early_exit": false (exited before maturity)
+    /// - "active": checks current metrics against rules
     pub fn verify_compliance(e: Env, commitment_id: String) -> bool {
         let commitment_core: Address = match e.storage().instance().get(&DataKey::CoreContract) {
             Some(addr) => addr,
@@ -907,9 +976,30 @@ impl AttestationEngineContract {
             Err(_) => return false,
         };
 
-        let metrics = Self::get_health_metrics(e.clone(), commitment_id);
-        let max_loss = commitment.rules.max_loss_percent as i128;
-        metrics.drawdown_percent <= max_loss && metrics.compliance_score >= 50
+        // Check commitment status
+        let status_settled = String::from_str(&e, "settled");
+        let status_violated = String::from_str(&e, "violated");
+        let status_early_exit = String::from_str(&e, "early_exit");
+        let status_active = String::from_str(&e, "active");
+
+        if commitment.status == status_settled {
+            // Settled commitments are considered compliant (they were compliant until settlement)
+            return true;
+        } else if commitment.status == status_violated {
+            // Violated commitments are non-compliant
+            return false;
+        } else if commitment.status == status_early_exit {
+            // Early exit commitments are non-compliant (didn't complete term)
+            return false;
+        } else if commitment.status == status_active {
+            // For active commitments, check current metrics
+            let metrics = Self::get_health_metrics(e.clone(), commitment_id);
+            let max_loss = commitment.rules.max_loss_percent as i128;
+            return metrics.drawdown_percent <= max_loss && metrics.compliance_score >= 50;
+        }
+
+        // Unknown status defaults to false
+        false
     }
 
     /// Convenience wrapper for fee_generation attestations
@@ -919,6 +1009,11 @@ impl AttestationEngineContract {
         commitment_id: String,
         fee_amount: i128,
     ) -> Result<(), AttestationError> {
+        // Validate fee amount must be non-negative
+        if fee_amount < 0 {
+            return Err(AttestationError::InvalidFeeAmount);
+        }
+
         let mut data = Map::new(&e);
         data.set(
             String::from_str(&e, "fee_amount"),

@@ -111,6 +111,8 @@ pub enum DataKey {
     TotalValueLocked,          // aggregate value locked across active commitments
     AuthorizedAllocator(Address), // contract address -> authorized for allocate()
     AuthorizedUpdaters,        // whitelist of authorized updaters
+    /// All commitment IDs for time-range queries (analytics). Appended on create.
+    AllCommitmentIds,
 }
 
 /// Transfer assets from owner to contract
@@ -331,6 +333,11 @@ impl CommitmentCoreContract {
             .instance()
             .set(&DataKey::TotalCommitments, &0u64);
 
+        // Initialize empty list for time-range queries
+        e.storage()
+            .instance()
+            .set(&DataKey::AllCommitmentIds, &Vec::<String>::new(&e));
+
         // Initialize total value locked counter
         e.storage()
             .instance()
@@ -480,6 +487,17 @@ impl CommitmentCoreContract {
             .instance()
             .set(&DataKey::TotalValueLocked, &(current_tvl + amount));
 
+        // Append to AllCommitmentIds for time-range queries (#143)
+        let mut all_ids = e
+            .storage()
+            .instance()
+            .get::<_, Vec<String>>(&DataKey::AllCommitmentIds)
+            .unwrap_or(Vec::new(&e));
+        all_ids.push_back(commitment_id.clone());
+        e.storage()
+            .instance()
+            .set(&DataKey::AllCommitmentIds, &all_ids);
+
         // INTERACTIONS: External calls (token transfer, NFT mint)
         // Transfer assets from owner to contract
         let contract_address = e.current_contract_address();
@@ -525,6 +543,14 @@ impl CommitmentCoreContract {
             .unwrap_or_else(|| fail(&e, CommitmentError::CommitmentNotFound, "get_commitment"))
     }
 
+    /// List all commitment IDs owned by the given address.
+    ///
+    /// This is a convenience wrapper around `get_owner_commitments` with a
+    /// name optimized for off-chain indexers and UIs.
+    pub fn list_commitments_by_owner(e: Env, owner: Address) -> Vec<String> {
+        Self::get_owner_commitments(e, owner)
+    }
+
     /// Get all commitments for an owner
     pub fn get_owner_commitments(e: Env, owner: Address) -> Vec<String> {
         e.storage()
@@ -547,6 +573,29 @@ impl CommitmentCoreContract {
             .instance()
             .get::<_, i128>(&DataKey::TotalValueLocked)
             .unwrap_or(0)
+    }
+
+    /// Get commitment IDs created between two timestamps (inclusive).
+    /// For analytics/dashboards. Gas cost is O(n) in total commitments; consider pagination for large n.
+    pub fn get_commitments_created_between(
+        e: Env,
+        from_ts: u64,
+        to_ts: u64,
+    ) -> Vec<String> {
+        let all_ids = e
+            .storage()
+            .instance()
+            .get::<_, Vec<String>>(&DataKey::AllCommitmentIds)
+            .unwrap_or(Vec::new(&e));
+        let mut out = Vec::new(&e);
+        for id in all_ids.iter() {
+            if let Some(c) = read_commitment(&e, &id) {
+                if c.created_at >= from_ts && c.created_at <= to_ts {
+                    out.push_back(id.clone());
+                }
+            }
+        }
+        out
     }
 
     /// Get admin address

@@ -440,7 +440,7 @@ fn test_e2e_violation_detection_flow() {
     assert!(metrics.compliance_score < 100);
 }
 
-/// Test: NFT secondary market transfer with commitment
+/// Test: NFT transfer between users after commitment is settled (NFT unlocked)
 #[test]
 fn test_e2e_nft_transfer_between_users() {
     let harness = TestHarness::new();
@@ -448,9 +448,16 @@ fn test_e2e_nft_transfer_between_users() {
     let buyer = &harness.accounts.user2;
     let amount = 1_000_000_000_000i128;
 
-    // Seller creates commitment
+    // Seller creates commitment (short duration for test)
     harness.approve_tokens(seller, &harness.contracts.commitment_core, amount);
-
+    let rules = CommitmentRules {
+        duration_days: 1,
+        max_loss_percent: 10,
+        commitment_type: String::from_str(&harness.env, "balanced"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 1000,
+        grace_period_days: 0,
+    };
     let commitment_id = harness
         .env
         .as_contract(&harness.contracts.commitment_core, || {
@@ -459,7 +466,7 @@ fn test_e2e_nft_transfer_between_users() {
                 seller.clone(),
                 amount,
                 harness.contracts.token.clone(),
-                harness.default_rules(),
+                rules,
             )
         });
 
@@ -470,6 +477,14 @@ fn test_e2e_nft_transfer_between_users() {
             CommitmentCoreContract::get_commitment(harness.env.clone(), commitment_id.clone())
         });
     let token_id = commitment.nft_token_id;
+
+    // Settle commitment so NFT is unlocked (active NFTs are not transferable)
+    harness.advance_days(2);
+    harness
+        .env
+        .as_contract(&harness.contracts.commitment_core, || {
+            CommitmentCoreContract::settle(harness.env.clone(), commitment_id.clone())
+        });
 
     // Transfer NFT to buyer
     harness
