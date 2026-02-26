@@ -6,7 +6,7 @@ use soroban_sdk::{
 use shared_utils::{EmergencyControl, Pausable};
 
 // Current storage version for migration checks.
-const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 1;
 
 // Issue #139: String parameter constraints
 #[allow(dead_code)]
@@ -162,8 +162,9 @@ impl CommitmentNFTContract {
         e.storage().instance().set(&DataKey::TokenIds, &token_ids);
 
         // Initialize paused state (default: not paused)
-        let paused_key = symbol_short!("paused");
-        e.storage().instance().set(&paused_key, &false);
+        e.storage()
+            .instance()
+            .set(&Pausable::paused_key(&e), &false);
 
         Ok(())
     }
@@ -880,8 +881,10 @@ impl CommitmentNFTContract {
             .set(&DataKey::ReentrancyGuard, &false);
 
         // Emit event
-        e.events()
-            .publish((symbol_short!("Inactive"), token_id), e.ledger().timestamp());
+        e.events().publish(
+            (symbol_short!("Inactive"), token_id),
+            e.ledger().timestamp(),
+        );
 
         Ok(())
     }
