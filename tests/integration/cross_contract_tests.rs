@@ -1376,3 +1376,89 @@ fn test_record_fees_record_drawdown_access_control() {
             .unwrap();
         });
 }
+
+// =============================================================================
+// #TBD: record_fees fee amount validation
+// =============================================================================
+
+/// Test: record_fees rejects negative or invalid fee amounts
+#[test]
+fn test_record_fees_validation() {
+    let harness = TestHarness::new();
+    let user = &harness.accounts.user1;
+    let verifier = &harness.accounts.verifier;
+    let amount = 1_000_000_000_000i128;
+
+    harness.approve_tokens(user, &harness.contracts.commitment_core, amount);
+    let commitment_id = harness.create_commitment(
+        user,
+        amount,
+        &harness.contracts.token,
+        harness.default_rules(),
+    );
+
+    // Test 1: Negative fee amount (-1) should be rejected
+    let result_negative_one = harness
+        .env
+        .as_contract(&harness.contracts.attestation_engine, || {
+            AttestationEngineContract::record_fees(
+                harness.env.clone(),
+                verifier.clone(),
+                commitment_id.clone(),
+                -1,
+            )
+        });
+    assert_eq!(result_negative_one, Err(AttestationError::InvalidFeeAmount));
+
+    // Test 2: Zero fee amount should be allowed
+    let result_zero = harness
+        .env
+        .as_contract(&harness.contracts.attestation_engine, || {
+            AttestationEngineContract::record_fees(
+                harness.env.clone(),
+                verifier.clone(),
+                commitment_id.clone(),
+                0,
+            )
+        });
+    assert_eq!(result_zero, Ok(()));
+
+    // Test 3: Positive fee amount should be allowed
+    let result_positive = harness
+        .env
+        .as_contract(&harness.contracts.attestation_engine, || {
+            AttestationEngineContract::record_fees(
+                harness.env.clone(),
+                verifier.clone(),
+                commitment_id.clone(),
+                50_000_000,
+            )
+        });
+    assert_eq!(result_positive, Ok(()));
+
+    // Test 4: Large positive fee amount should be allowed
+    let result_large_positive = harness
+        .env
+        .as_contract(&harness.contracts.attestation_engine, || {
+            AttestationEngineContract::record_fees(
+                harness.env.clone(),
+                verifier.clone(),
+                commitment_id.clone(),
+                1_000_000_000_000,
+            )
+        });
+    assert_eq!(result_large_positive, Ok(()));
+
+    // Test 5: Minimum i128 value should be rejected
+    let result_min_i128 = harness
+        .env
+        .as_contract(&harness.contracts.attestation_engine, || {
+            AttestationEngineContract::record_fees(
+                harness.env.clone(),
+                verifier.clone(),
+                commitment_id.clone(),
+                i128::MIN,
+            )
+        });
+    assert_eq!(result_min_i128, Err(AttestationError::InvalidFeeAmount));
+}
