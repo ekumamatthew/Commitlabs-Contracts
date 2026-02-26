@@ -109,6 +109,8 @@ pub enum DataKey {
     TotalCommitments,          // counter
     ReentrancyGuard,           // reentrancy protection flag
     TotalValueLocked,          // aggregate value locked across active commitments
+    AuthorizedAllocator(Address), // contract address -> authorized for allocate()
+    AuthorizedUpdaters,        // whitelist of authorized updaters
     /// All commitment IDs for time-range queries (analytics). Appended on create.
     AllCommitmentIds,
 }
@@ -128,6 +130,8 @@ fn transfer_assets(e: &Env, from: &Address, to: &Address, asset_address: &Addres
     token_client.transfer(from, to, &amount);
 }
 
+/// Helper function to call NFT contract mint function. Passes current contract as caller for access control.
+/// Call the NFT contract mint function.
 /// Helper function to call NFT contract mint function
 fn call_nft_mint(
     e: &Env,
@@ -141,7 +145,9 @@ fn call_nft_mint(
     asset_address: &Address,
     early_exit_penalty: u32,
 ) -> u32 {
+    let caller = e.current_contract_address();
     let mut args = Vec::new(e);
+    args.push_back(caller.into_val(e));
     args.push_back(owner.clone().into_val(e));
     args.push_back(commitment_id.clone().into_val(e));
     args.push_back(duration_days.into_val(e));
@@ -608,6 +614,71 @@ impl CommitmentCoreContract {
             .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "get_nft_contract"))
     }
 
+    /// Pause the contract (admin-only).
+    pub fn pause(e: Env) {
+        let admin = e
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Admin)
+            .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "pause"));
+        admin.require_auth();
+        Pausable::pause(&e);
+    }
+
+    /// Unpause the contract (admin-only).
+    pub fn unpause(e: Env) {
+        let admin = e
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Admin)
+            .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "unpause"));
+        admin.require_auth();
+        Pausable::unpause(&e);
+    }
+
+    /// Check if the contract is paused.
+    pub fn is_paused(e: Env) -> bool {
+        Pausable::is_paused(&e)
+    }
+
+    /// Add an authorized contract that may call allocate() (admin-only).
+    pub fn add_authorized_contract(e: Env, caller: Address, contract_address: Address) {
+        require_admin(&e, &caller);
+        e.storage()
+            .instance()
+            .set(&DataKey::AuthorizedAllocator(contract_address.clone()), &true);
+        e.events().publish(
+            (Symbol::new(&e, "AuthorizedContractAdded"),),
+            (contract_address, e.ledger().timestamp()),
+        );
+    }
+
+    /// Remove an authorized contract from the allocator whitelist (admin-only).
+    pub fn remove_authorized_contract(e: Env, caller: Address, contract_address: Address) {
+        require_admin(&e, &caller);
+        e.storage()
+            .instance()
+            .remove(&DataKey::AuthorizedAllocator(contract_address.clone()));
+        e.events().publish(
+            (Symbol::new(&e, "AuthorizedContractRemoved"),),
+            (contract_address, e.ledger().timestamp()),
+        );
+    }
+
+    /// Check if a contract address is authorized to call allocate().
+    pub fn is_authorized(e: Env, contract_address: Address) -> bool {
+        let admin = e.storage().instance().get::<_, Address>(&DataKey::Admin);
+        if let Some(a) = admin {
+            if contract_address == a {
+                return true;
+            }
+        }
+        e.storage()
+            .instance()
+            .get::<_, bool>(&DataKey::AuthorizedAllocator(contract_address))
+            .unwrap_or(false)
+    }
+
     /// Update commitment value (called by allocation logic or oracle-fed keeper).
     /// Persists new_value to commitment.current_value and updates TotalValueLocked.
     pub fn update_value(e: Env, commitment_id: String, new_value: i128) {
@@ -939,19 +1010,32 @@ impl CommitmentCoreContract {
         );
     }
 
-    /// Allocate liquidity (called by allocation strategy)
+    /// Allocate liquidity (called by admin or authorized allocator contract)
+    ///
+    /// # Access Control
+    /// Caller must be admin or an address in the authorized allocator whitelist.
     ///
     /// # Reentrancy Protection
     /// Uses checks-effects-interactions pattern with reentrancy guard.
-    pub fn allocate(e: Env, commitment_id: String, target_pool: Address, amount: i128) {
+    pub fn allocate(
+        e: Env,
+        caller: Address,
+        commitment_id: String,
+        target_pool: Address,
+        amount: i128,
+    ) {
         // Reentrancy protection
         require_no_reentrancy(&e);
         set_reentrancy_guard(&e, true);
 
-        // Check if contract is paused
         Pausable::require_not_paused(&e);
 
-        // Rate limit allocations per target pool address
+        caller.require_auth();
+        if !Self::is_authorized(e.clone(), caller.clone()) {
+            set_reentrancy_guard(&e, false);
+            fail(&e, CommitmentError::Unauthorized, "allocate: caller not admin or authorized allocator");
+        }
+
         let fn_symbol = symbol_short!("alloc");
         RateLimiter::check(&e, &target_pool, &fn_symbol);
 
