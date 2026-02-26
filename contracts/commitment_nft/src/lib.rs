@@ -439,6 +439,12 @@ impl CommitmentNFTContract {
             return Err(ContractError::NotAuthorized);
         }
 
+        // CHECKS: Reject zero address owner
+        if is_zero_address(&e, &owner) {
+            e.storage().instance().set(&DataKey::ReentrancyGuard, &false);
+            return Err(ContractError::TransferToZeroAddress);
+        }
+
         // Validate inputs
         if duration_days == 0 {
             e.storage()
@@ -654,6 +660,12 @@ impl CommitmentNFTContract {
             e.storage()
                 .instance()
                 .set(&DataKey::ReentrancyGuard, &false);
+            return Err(ContractError::TransferToZeroAddress);
+        }
+
+        // CHECKS: Reject transfer to zero address
+        if is_zero_address(&e, &to) {
+            e.storage().instance().set(&DataKey::ReentrancyGuard, &false);
             return Err(ContractError::TransferToZeroAddress);
         }
 
@@ -1018,6 +1030,11 @@ fn require_valid_wasm_hash(e: &Env, wasm_hash: &BytesN<32>) -> Result<(), Contra
         return Err(ContractError::InvalidWasmHash);
     }
     Ok(())
+}
+
+fn is_zero_address(e: &Env, address: &Address) -> bool {
+    let zero_str = String::from_str(e, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
+    address.to_string() == zero_str
 }
 
 #[cfg(all(test, feature = "benchmark"))]
