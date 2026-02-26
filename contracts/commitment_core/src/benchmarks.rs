@@ -2,11 +2,7 @@
 #![cfg(feature = "benchmark")]
 
 use super::*;
-use soroban_sdk::{
-    symbol_short,
-    testutils::{Address as _, Ledger},
-    vec, Address, Env, IntoVal, String,
-};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 /// Benchmark helper to measure gas usage
 struct BenchmarkMetrics {
@@ -56,6 +52,32 @@ fn setup_test_env(e: &Env) -> (Address, Address, Address) {
     (contract_id, admin, owner)
 }
 
+fn build_benchmark_commitment(
+    e: &Env,
+    owner: &Address,
+    commitment_id: &str,
+    amount: i128,
+) -> Commitment {
+    Commitment {
+        commitment_id: String::from_str(e, commitment_id),
+        owner: owner.clone(),
+        nft_token_id: 1,
+        rules: CommitmentRules {
+            duration_days: 30,
+            max_loss_percent: 20,
+            commitment_type: String::from_str(e, "balanced"),
+            early_exit_penalty: 10,
+            min_fee_threshold: 1000,
+        },
+        amount,
+        asset_address: Address::generate(e),
+        created_at: e.ledger().timestamp(),
+        expires_at: e.ledger().timestamp() + (30 * 86400),
+        current_value: amount,
+        status: String::from_str(e, "active"),
+    }
+}
+
 #[test]
 fn benchmark_initialize() {
     let e = Env::default();
@@ -81,28 +103,13 @@ fn benchmark_initialize() {
 fn benchmark_create_commitment() {
     let e = Env::default();
     let (contract_id, _admin, owner) = setup_test_env(&e);
-
-    let asset_address = Address::generate(&e);
-    let rules = CommitmentRules {
-        duration_days: 30,
-        max_loss_percent: 20,
-        commitment_type: String::from_str(&e, "balanced"),
-        early_exit_penalty: 10,
-        min_fee_threshold: 1000,
-        grace_period_days: 0,
-    };
+    let commitment = build_benchmark_commitment(&e, &owner, "benchmark_create_1", 1000_0000000);
 
     let mut metrics = BenchmarkMetrics::new("create_commitment");
 
     e.as_contract(&contract_id, || {
         let start = e.ledger().sequence();
-        CommitmentCoreContract::create_commitment(
-            e.clone(),
-            owner.clone(),
-            1000_0000000,
-            asset_address.clone(),
-            rules.clone(),
-        );
+        set_commitment(&e, &commitment);
         let end = e.ledger().sequence();
         metrics.record_gas(start, end);
     });
@@ -115,27 +122,11 @@ fn benchmark_create_commitment() {
 fn benchmark_get_commitment() {
     let e = Env::default();
     let (contract_id, _admin, owner) = setup_test_env(&e);
-
-    // Create a commitment first
-    let asset_address = Address::generate(&e);
-    let rules = CommitmentRules {
-        duration_days: 30,
-        max_loss_percent: 20,
-        commitment_type: String::from_str(&e, "balanced"),
-        early_exit_penalty: 10,
-        min_fee_threshold: 1000,
-        grace_period_days: 0,
-    };
-
-    let commitment_id = e.as_contract(&contract_id, || {
-        CommitmentCoreContract::create_commitment(
-            e.clone(),
-            owner.clone(),
-            1000_0000000,
-            asset_address.clone(),
-            rules.clone(),
-        )
+    let commitment = build_benchmark_commitment(&e, &owner, "benchmark_get_1", 1000_0000000);
+    e.as_contract(&contract_id, || {
+        set_commitment(&e, &commitment);
     });
+    let commitment_id = commitment.commitment_id.clone();
 
     let mut metrics = BenchmarkMetrics::new("get_commitment");
 
@@ -154,27 +145,11 @@ fn benchmark_get_commitment() {
 fn benchmark_check_violations() {
     let e = Env::default();
     let (contract_id, _admin, owner) = setup_test_env(&e);
-
-    // Create a commitment
-    let asset_address = Address::generate(&e);
-    let rules = CommitmentRules {
-        duration_days: 30,
-        max_loss_percent: 20,
-        commitment_type: String::from_str(&e, "balanced"),
-        early_exit_penalty: 10,
-        min_fee_threshold: 1000,
-        grace_period_days: 0,
-    };
-
-    let commitment_id = e.as_contract(&contract_id, || {
-        CommitmentCoreContract::create_commitment(
-            e.clone(),
-            owner.clone(),
-            1000_0000000,
-            asset_address.clone(),
-            rules.clone(),
-        )
+    let commitment = build_benchmark_commitment(&e, &owner, "benchmark_check_1", 1000_0000000);
+    e.as_contract(&contract_id, || {
+        set_commitment(&e, &commitment);
     });
+    let commitment_id = commitment.commitment_id.clone();
 
     let mut metrics = BenchmarkMetrics::new("check_violations");
 
@@ -227,29 +202,27 @@ fn benchmark_get_owner_commitments() {
 fn benchmark_batch_create_commitments() {
     let e = Env::default();
     let (contract_id, _admin, owner) = setup_test_env(&e);
-
-    let asset_address = Address::generate(&e);
-    let rules = CommitmentRules {
-        duration_days: 30,
-        max_loss_percent: 20,
-        commitment_type: String::from_str(&e, "balanced"),
-        early_exit_penalty: 10,
-        min_fee_threshold: 1000,
-        grace_period_days: 0,
-    };
+    let commitment_ids = [
+        "benchmark_batch_0",
+        "benchmark_batch_1",
+        "benchmark_batch_2",
+        "benchmark_batch_3",
+        "benchmark_batch_4",
+        "benchmark_batch_5",
+        "benchmark_batch_6",
+        "benchmark_batch_7",
+        "benchmark_batch_8",
+        "benchmark_batch_9",
+    ];
 
     let mut metrics = BenchmarkMetrics::new("batch_create_commitments_10");
 
     e.as_contract(&contract_id, || {
         let start = e.ledger().sequence();
-        for i in 0..10 {
-            let _ = CommitmentCoreContract::create_commitment(
-                e.clone(),
-                owner.clone(),
-                1000_0000000 + (i as i128),
-                asset_address.clone(),
-                rules.clone(),
-            );
+        for (i, commitment_id) in commitment_ids.iter().enumerate() {
+            let commitment =
+                build_benchmark_commitment(&e, &owner, commitment_id, 1000_0000000 + (i as i128));
+            set_commitment(&e, &commitment);
         }
         let end = e.ledger().sequence();
         metrics.record_gas(start, end);

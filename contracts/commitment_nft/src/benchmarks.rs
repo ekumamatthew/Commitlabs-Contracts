@@ -2,10 +2,7 @@
 #![cfg(feature = "benchmark")]
 
 use super::*;
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env, String,
-};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 /// Benchmark helper to measure gas usage
 struct BenchmarkMetrics {
@@ -30,16 +27,18 @@ impl BenchmarkMetrics {
     }
 
     fn print_summary(&self) {
-        let gas_used = if self.gas_after > self.gas_before {
+        let _gas_used = if self.gas_after > self.gas_before {
             self.gas_after - self.gas_before
         } else {
             0
         };
+        let _ = &self.function_name;
         // Benchmark metrics collected - can be extended with proper logging
     }
 }
 
 fn setup_test_env(e: &Env) -> Address {
+    e.mock_all_auths();
     let admin = Address::generate(e);
     let contract_id = e.register_contract(None, CommitmentNFTContract);
 
@@ -53,6 +52,7 @@ fn setup_test_env(e: &Env) -> Address {
 #[test]
 fn benchmark_initialize() {
     let e = Env::default();
+    e.mock_all_auths();
     let admin = Address::generate(&e);
     let contract_id = e.register_contract(None, CommitmentNFTContract);
 
@@ -201,16 +201,28 @@ fn benchmark_batch_mint() {
     let e = Env::default();
     let contract_id = setup_test_env(&e);
     let owner = Address::generate(&e);
+    let commitment_ids = [
+        "commitment_0",
+        "commitment_1",
+        "commitment_2",
+        "commitment_3",
+        "commitment_4",
+        "commitment_5",
+        "commitment_6",
+        "commitment_7",
+        "commitment_8",
+        "commitment_9",
+    ];
 
     let mut metrics = BenchmarkMetrics::new("batch_mint_10");
 
-    e.as_contract(&contract_id, || {
-        let start = e.ledger().sequence();
-        for _ in 0..10 {
+    let start = e.ledger().sequence();
+    for commitment_id in commitment_ids.iter() {
+        e.as_contract(&contract_id, || {
             let _ = CommitmentNFTContract::mint(
                 e.clone(),
                 owner.clone(),
-                String::from_str(&e, "commitment_batch"),
+                String::from_str(&e, commitment_id),
                 30,
                 20,
                 String::from_str(&e, "balanced"),
@@ -219,10 +231,10 @@ fn benchmark_batch_mint() {
                 10,
             )
             .unwrap();
-        }
-        let end = e.ledger().sequence();
-        metrics.record_gas(start, end);
-    });
+        });
+    }
+    let end = e.ledger().sequence();
+    metrics.record_gas(start, end);
 
     metrics.print_summary();
 }

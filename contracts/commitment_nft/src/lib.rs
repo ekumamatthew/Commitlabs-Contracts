@@ -1,9 +1,15 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, symbol_short, Address, BytesN, Env, String, Vec, Symbol};
 use shared_utils::{EmergencyControl, Pausable};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
+    String, Symbol, Vec,
+};
 
 // Current storage version for migration checks.
 const CURRENT_VERSION: u32 = 1;
+
+// Issue #139: String parameter constraints
+const MAX_COMMITMENT_ID_LENGTH: u32 = 256;
 
 // ============================================================================
 // Error Types
@@ -54,6 +60,8 @@ pub enum ContractError {
     NFTLocked = 19,
     /// Duration would cause expires_at to overflow u64
     ExpirationOverflow = 20,
+    /// Invalid commitment_id (must be non-empty and <= 256 chars)
+    InvalidCommitmentId = 21,
 }
 
 // ============================================================================
@@ -195,6 +203,12 @@ impl CommitmentNFTContract {
         *commitment_type == safe || *commitment_type == balanced || *commitment_type == aggressive
     }
 
+    /// Validate commitment_id: must be non-empty and not exceed MAX_COMMITMENT_ID_LENGTH
+    fn is_valid_commitment_id(_e: &Env, commitment_id: &String) -> bool {
+        let len = commitment_id.len();
+        len > 0 && len <= MAX_COMMITMENT_ID_LENGTH
+    }
+
     /// Set the authorized commitment_core contract address for settlement
     /// Only the admin can call this function
     pub fn set_core_contract(e: Env, core_contract: Address) -> Result<(), ContractError> {
@@ -238,11 +252,7 @@ impl CommitmentNFTContract {
     }
 
     /// Update admin (admin-only).
-    pub fn set_admin(
-        e: Env,
-        caller: Address,
-        new_admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn set_admin(e: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         require_admin(&e, &caller)?;
         e.storage().instance().set(&DataKey::Admin, &new_admin);
         Ok(())
@@ -261,11 +271,7 @@ impl CommitmentNFTContract {
     }
 
     /// Migrate storage from a previous version to CURRENT_VERSION (admin-only).
-    pub fn migrate(
-        e: Env,
-        caller: Address,
-        from_version: u32,
-    ) -> Result<(), ContractError> {
+    pub fn migrate(e: Env, caller: Address, from_version: u32) -> Result<(), ContractError> {
         require_admin(&e, &caller)?;
 
         let stored_version = read_version(&e);
@@ -285,7 +291,9 @@ impl CommitmentNFTContract {
             e.storage().instance().set(&DataKey::TokenIds, &token_ids);
         }
         if !e.storage().instance().has(&DataKey::ReentrancyGuard) {
-            e.storage().instance().set(&DataKey::ReentrancyGuard, &false);
+            e.storage()
+                .instance()
+                .set(&DataKey::ReentrancyGuard, &false);
         }
 
         e.storage()
@@ -369,6 +377,12 @@ impl CommitmentNFTContract {
                 .instance()
                 .set(&DataKey::ReentrancyGuard, &false);
             return Err(ContractError::InvalidCommitmentType);
+        }
+        if !Self::is_valid_commitment_id(&e, &commitment_id) {
+            e.storage()
+                .instance()
+                .set(&DataKey::ReentrancyGuard, &false);
+            return Err(ContractError::InvalidCommitmentId);
         }
         if initial_amount <= 0 {
             e.storage()
@@ -561,8 +575,13 @@ impl CommitmentNFTContract {
             return Err(ContractError::NotOwner);
         }
 
-        // Note: Active commitments CAN be transferred (secondary market)
-        // The commitment_core contract maintains the commitment state separately
+        // Active (locked) commitment NFTs cannot be transferred (#145)
+        if nft.is_active {
+            e.storage()
+                .instance()
+                .set(&DataKey::ReentrancyGuard, &false);
+            return Err(ContractError::NFTLocked);
+        }
 
         // EFFECTS: Update state
         // Update owner

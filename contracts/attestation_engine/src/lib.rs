@@ -1,9 +1,9 @@
 #![no_std]
-use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, IntoVal,
-    Map, String, Symbol, TryIntoVal, Val, Vec,
-};
 use shared_utils::{BatchError, BatchMode, BatchProcessor, BatchResultVoid, Pausable, RateLimiter};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env,
+    IntoVal, Map, String, Symbol, TryIntoVal, Val, Vec,
+};
 
 const CURRENT_VERSION: u32 = 1;
 
@@ -107,6 +107,19 @@ pub struct AttestParams {
     pub data: Map<String, String>,
     pub is_compliant: bool,
 }
+
+/// Paginated result for get_attestations_page.
+/// Ordering is by timestamp (oldest first, same as insertion order).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationsPage {
+    pub attestations: Vec<Attestation>,
+    /// Next offset to use for the following page; 0 means no more pages.
+    pub next_offset: u32,
+}
+
+/// Maximum number of attestations returned per page (avoids exceeding Soroban limits).
+pub const MAX_PAGE_SIZE: u32 = 100;
 
 // Import Commitment types from commitment_core (define locally for cross-contract calls)
 #[contracttype]
@@ -256,7 +269,7 @@ impl AttestationEngineContract {
     }
 
     /// Check if an address is an authorized verifier
-fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
+    fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         // Admin is always authorized
         if let Some(admin) = e
             .storage()
@@ -276,10 +289,10 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
     }
 
     /// Pause the contract
-    /// 
+    ///
     /// # Arguments
     /// * `e` - The environment
-    /// 
+    ///
     /// # Panics
     /// Panics if caller is not admin or if contract is already paused
     pub fn pause(e: Env) {
@@ -294,10 +307,10 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
     }
 
     /// Unpause the contract
-    /// 
+    ///
     /// # Arguments
     /// * `e` - The environment
-    /// 
+    ///
     /// # Panics
     /// Panics if caller is not admin or if contract is already unpaused
     pub fn unpause(e: Env) {
@@ -312,17 +325,17 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
     }
 
     /// Check if the contract is paused
-    /// 
+    ///
     /// # Arguments
     /// * `e` - The environment
-    /// 
+    ///
     /// # Returns
     /// `true` if paused, `false` otherwise
     pub fn is_paused(e: Env) -> bool {
         Pausable::is_paused(&e)
     }
 
-/// Check if an address is a verifier (public version)
+    /// Check if an address is a verifier (public version)
     pub fn is_verifier(e: Env, address: Address) -> bool {
         Self::is_authorized_verifier(&e, &address)
     }
@@ -349,11 +362,7 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
     }
 
     /// Update admin (admin-only).
-    pub fn set_admin(
-        e: Env,
-        caller: Address,
-        new_admin: Address,
-    ) -> Result<(), AttestationError> {
+    pub fn set_admin(e: Env, caller: Address, new_admin: Address) -> Result<(), AttestationError> {
         require_admin(&e, &caller)?;
         e.storage().instance().set(&DataKey::Admin, &new_admin);
         Ok(())
@@ -372,11 +381,7 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
     }
 
     /// Migrate storage from a previous version to CURRENT_VERSION (admin-only).
-    pub fn migrate(
-        e: Env,
-        caller: Address,
-        from_version: u32,
-    ) -> Result<(), AttestationError> {
+    pub fn migrate(e: Env, caller: Address, from_version: u32) -> Result<(), AttestationError> {
         require_admin(&e, &caller)?;
 
         let stored_version = read_version(&e);
@@ -394,9 +399,7 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
                 .set(&DataKey::TotalAttestations, &0u64);
         }
         if !e.storage().instance().has(&DataKey::TotalViolations) {
-            e.storage()
-                .instance()
-                .set(&DataKey::TotalViolations, &0u64);
+            e.storage().instance().set(&DataKey::TotalViolations, &0u64);
         }
         if !e.storage().instance().has(&DataKey::TotalFees) {
             e.storage().instance().set(&DataKey::TotalFees, &0i128);
@@ -642,7 +645,7 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         data: Map<String, String>,
         is_compliant: bool,
     ) -> Result<(), AttestationError> {
-// 1. Reentrancy protection
+        // 1. Reentrancy protection
         if e.storage().instance().has(&DataKey::ReentrancyGuard) {
             panic!("Reentrancy detected");
         }
@@ -689,9 +692,17 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         }
 
         // 7b. Collect attestation verification fee if configured
-        let fee_amount: i128 = e.storage().instance().get(&DataKey::AttestationFeeAmount).unwrap_or(0);
+        let fee_amount: i128 = e
+            .storage()
+            .instance()
+            .get(&DataKey::AttestationFeeAmount)
+            .unwrap_or(0);
         if fee_amount > 0 {
-            if let Some(fee_asset) = e.storage().instance().get::<DataKey, Address>(&DataKey::AttestationFeeAsset) {
+            if let Some(fee_asset) = e
+                .storage()
+                .instance()
+                .get::<DataKey, Address>(&DataKey::AttestationFeeAsset)
+            {
                 let contract_address = e.current_contract_address();
                 let token_client = token::Client::new(&e, &fee_asset);
                 token_client.transfer(&caller, &contract_address, &fee_amount);
@@ -795,6 +806,55 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
             .unwrap_or_else(|| Vec::new(&e))
     }
 
+    /// Get a page of attestations for a commitment (ordered by timestamp, oldest first).
+    /// Use this for large lists to stay within Soroban limits.
+    ///
+    /// # Arguments
+    /// * `commitment_id` - The commitment to list attestations for
+    /// * `offset` - Index to start from (0-based)
+    /// * `limit` - Max number of attestations to return (capped at MAX_PAGE_SIZE)
+    ///
+    /// # Returns
+    /// * `attestations` - Slice of attestations for this page
+    /// * `next_offset` - Offset for the next page; 0 if no more pages
+    pub fn get_attestations_page(
+        e: Env,
+        commitment_id: String,
+        offset: u32,
+        limit: u32,
+    ) -> AttestationsPage {
+        let key = DataKey::Attestations(commitment_id.clone());
+        let all: Vec<Attestation> = e
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(&e));
+
+        let cap = limit.min(MAX_PAGE_SIZE);
+        let len = all.len();
+
+        if offset >= len || cap == 0 {
+            return AttestationsPage {
+                attestations: Vec::new(&e),
+                next_offset: 0,
+            };
+        }
+
+        let end = (offset + cap).min(len);
+        let mut page = Vec::new(&e);
+        let mut i = offset;
+        while i < end {
+            page.push_back(all.get(i).unwrap());
+            i += 1;
+        }
+        let next_offset = if end < len { end } else { 0 };
+
+        AttestationsPage {
+            attestations: page,
+            next_offset,
+        }
+    }
+
     /// Get attestation count for a commitment
     pub fn get_attestation_count(e: Env, commitment_id: String) -> u64 {
         let key = DataKey::AttestationCounter(commitment_id);
@@ -819,7 +879,10 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         let current_value = commitment.current_value;
         let drawdown_percent = if initial_value > 0 {
             let diff = initial_value.checked_sub(current_value).unwrap_or(0);
-            diff.checked_mul(100).unwrap_or(0).checked_div(initial_value).unwrap_or(0)
+            diff.checked_mul(100)
+                .unwrap_or(0)
+                .checked_div(initial_value)
+                .unwrap_or(0)
         } else {
             0
         };
@@ -1244,7 +1307,9 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         // Validate batch size
         let batch_size = params_list.len();
         let contract_name = String::from_str(&e, "attestation_engine");
-        if let Err(error_code) = BatchProcessor::enforce_batch_limits(&e, batch_size, Some(contract_name)) {
+        if let Err(error_code) =
+            BatchProcessor::enforce_batch_limits(&e, batch_size, Some(contract_name))
+        {
             e.storage().instance().remove(&DataKey::ReentrancyGuard);
             let mut errors = Vec::new(&e);
             errors.push_back(BatchError {
@@ -1260,8 +1325,16 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
 
         // Read analytics counters once (optimization)
         let (mut total_attestations, mut total_violations, mut verifier_count) = {
-            let total_att = e.storage().instance().get(&DataKey::TotalAttestations).unwrap_or(0u64);
-            let total_viol = e.storage().instance().get(&DataKey::TotalViolations).unwrap_or(0u64);
+            let total_att = e
+                .storage()
+                .instance()
+                .get(&DataKey::TotalAttestations)
+                .unwrap_or(0u64);
+            let total_viol = e
+                .storage()
+                .instance()
+                .get(&DataKey::TotalViolations)
+                .unwrap_or(0u64);
             let verifier_key = DataKey::VerifierAttestationCount(caller.clone());
             let ver_count = e.storage().instance().get(&verifier_key).unwrap_or(0u64);
             (total_att, total_viol, ver_count)
@@ -1366,7 +1439,8 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
 
             // Store attestation
             let key = DataKey::Attestations(params.commitment_id.clone());
-            let mut attestations: Vec<Attestation> = e.storage()
+            let mut attestations: Vec<Attestation> = e
+                .storage()
                 .persistent()
                 .get(&key)
                 .unwrap_or_else(|| Vec::new(&e));
@@ -1378,10 +1452,7 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
 
             // Increment attestation counter
             let counter_key = DataKey::AttestationCounter(params.commitment_id.clone());
-            let counter: u64 = e.storage()
-                .persistent()
-                .get(&counter_key)
-                .unwrap_or(0);
+            let counter: u64 = e.storage().persistent().get(&counter_key).unwrap_or(0);
             e.storage().persistent().set(&counter_key, &(counter + 1));
 
             // Update analytics counters (in memory)
@@ -1395,14 +1466,26 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
 
             // Emit event
             e.events().publish(
-                (Symbol::new(&e, "AttestationRecorded"), params.commitment_id.clone(), caller.clone()),
-                (params.attestation_type.clone(), params.is_compliant, timestamp)
+                (
+                    Symbol::new(&e, "AttestationRecorded"),
+                    params.commitment_id.clone(),
+                    caller.clone(),
+                ),
+                (
+                    params.attestation_type.clone(),
+                    params.is_compliant,
+                    timestamp,
+                ),
             );
         }
 
         // Write analytics counters once (optimization)
-        e.storage().instance().set(&DataKey::TotalAttestations, &total_attestations);
-        e.storage().instance().set(&DataKey::TotalViolations, &total_violations);
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalAttestations, &total_attestations);
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalViolations, &total_violations);
         let verifier_key = DataKey::VerifierAttestationCount(caller.clone());
         e.storage().instance().set(&verifier_key, &verifier_count);
 
@@ -1412,7 +1495,7 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         // Emit batch event
         e.events().publish(
             (Symbol::new(&e, "BatchAttest"), batch_size),
-            (results.len(), errors.len(), timestamp)
+            (results.len(), errors.len(), timestamp),
         );
 
         BatchResultVoid::partial(results.len(), errors)
@@ -1489,8 +1572,12 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         if amount < 0 {
             return Err(AttestationError::InvalidFeeAmount);
         }
-        e.storage().instance().set(&DataKey::AttestationFeeAmount, &amount);
-        e.storage().instance().set(&DataKey::AttestationFeeAsset, &asset);
+        e.storage()
+            .instance()
+            .set(&DataKey::AttestationFeeAmount, &amount);
+        e.storage()
+            .instance()
+            .set(&DataKey::AttestationFeeAsset, &asset);
         e.events().publish(
             (Symbol::new(&e, "AttestationFeeSet"), caller),
             (amount, asset, e.ledger().timestamp()),
@@ -1499,7 +1586,11 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
     }
 
     /// Set fee recipient (protocol treasury). Admin only.
-    pub fn set_fee_recipient(e: Env, caller: Address, recipient: Address) -> Result<(), AttestationError> {
+    pub fn set_fee_recipient(
+        e: Env,
+        caller: Address,
+        recipient: Address,
+    ) -> Result<(), AttestationError> {
         caller.require_auth();
         let admin: Address = e
             .storage()
@@ -1509,7 +1600,9 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
         if caller != admin {
             return Err(AttestationError::Unauthorized);
         }
-        e.storage().instance().set(&DataKey::FeeRecipient, &recipient);
+        e.storage()
+            .instance()
+            .set(&DataKey::FeeRecipient, &recipient);
         e.events().publish(
             (Symbol::new(&e, "FeeRecipientSet"), caller),
             (recipient, e.ledger().timestamp()),
@@ -1559,7 +1652,11 @@ fn is_authorized_verifier(e: &Env, address: &Address) -> bool {
 
     /// Get attestation fee (amount, asset). (0, default) if not set.
     pub fn get_attestation_fee(e: Env) -> (i128, Option<Address>) {
-        let amount: i128 = e.storage().instance().get(&DataKey::AttestationFeeAmount).unwrap_or(0);
+        let amount: i128 = e
+            .storage()
+            .instance()
+            .get(&DataKey::AttestationFeeAmount)
+            .unwrap_or(0);
         let asset: Option<Address> = e.storage().instance().get(&DataKey::AttestationFeeAsset);
         (amount, asset)
     }
@@ -1606,7 +1703,7 @@ fn require_valid_wasm_hash(e: &Env, wasm_hash: &BytesN<32>) -> Result<(), Attest
     Ok(())
 }
 
-#[cfg(test)]
-mod tests;
 #[cfg(all(test, feature = "benchmark"))]
 mod benchmarks;
+#[cfg(test)]
+mod tests;
