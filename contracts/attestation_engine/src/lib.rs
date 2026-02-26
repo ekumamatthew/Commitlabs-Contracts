@@ -920,6 +920,13 @@ impl AttestationEngineContract {
     }
 
     /// Verify commitment compliance
+    /// Verify commitment compliance
+    /// 
+    /// Returns compliance status based on commitment state:
+    /// - "settled": true (compliant until settlement)
+    /// - "violated": false (rule violation occurred)
+    /// - "early_exit": false (exited before maturity)
+    /// - "active": checks current metrics against rules
     pub fn verify_compliance(e: Env, commitment_id: String) -> bool {
         let commitment_core: Address = match e.storage().instance().get(&DataKey::CoreContract) {
             Some(addr) => addr,
@@ -941,9 +948,30 @@ impl AttestationEngineContract {
             Err(_) => return false,
         };
 
-        let metrics = Self::get_health_metrics(e.clone(), commitment_id);
-        let max_loss = commitment.rules.max_loss_percent as i128;
-        metrics.drawdown_percent <= max_loss && metrics.compliance_score >= 50
+        // Check commitment status
+        let status_settled = String::from_str(&e, "settled");
+        let status_violated = String::from_str(&e, "violated");
+        let status_early_exit = String::from_str(&e, "early_exit");
+        let status_active = String::from_str(&e, "active");
+
+        if commitment.status == status_settled {
+            // Settled commitments are considered compliant (they were compliant until settlement)
+            return true;
+        } else if commitment.status == status_violated {
+            // Violated commitments are non-compliant
+            return false;
+        } else if commitment.status == status_early_exit {
+            // Early exit commitments are non-compliant (didn't complete term)
+            return false;
+        } else if commitment.status == status_active {
+            // For active commitments, check current metrics
+            let metrics = Self::get_health_metrics(e.clone(), commitment_id);
+            let max_loss = commitment.rules.max_loss_percent as i128;
+            return metrics.drawdown_percent <= max_loss && metrics.compliance_score >= 50;
+        }
+
+        // Unknown status defaults to false
+        false
     }
 
     /// Convenience wrapper for fee_generation attestations
