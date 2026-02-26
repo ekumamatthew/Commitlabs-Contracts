@@ -981,6 +981,11 @@ impl AttestationEngineContract {
         commitment_id: String,
         fee_amount: i128,
     ) -> Result<(), AttestationError> {
+        // Validate fee amount must be non-negative
+        if fee_amount < 0 {
+            return Err(AttestationError::InvalidFeeAmount);
+        }
+
         let mut data = Map::new(&e);
         data.set(
             String::from_str(&e, "fee_amount"),
