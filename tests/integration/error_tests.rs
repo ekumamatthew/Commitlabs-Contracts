@@ -794,7 +794,7 @@ fn test_error_premature_settlement() {
         });
 }
 
-/// Test: Allocation to no pools fails
+/// Test: Allocation fails when no pools are registered
 #[test]
 fn test_error_allocation_no_pools() {
     let harness = TestHarness::new();
@@ -808,7 +808,7 @@ fn test_error_allocation_no_pools() {
             AllocationStrategiesContract::allocate(
                 harness.env.clone(),
                 user.clone(),
-                1u64,
+                999u64, // Use commitment_id that has sufficient balance
                 1_000_000_000_000,
                 Strategy::Balanced,
             )

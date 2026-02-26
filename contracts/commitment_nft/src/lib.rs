@@ -8,6 +8,9 @@ use soroban_sdk::{
 // Current storage version for migration checks.
 const CURRENT_VERSION: u32 = 1;
 
+// Issue #139: String parameter constraints
+const MAX_COMMITMENT_ID_LENGTH: u32 = 256;
+
 // ============================================================================
 // Error Types
 // ============================================================================
@@ -57,6 +60,8 @@ pub enum ContractError {
     NFTLocked = 19,
     /// Duration would cause expires_at to overflow u64
     ExpirationOverflow = 20,
+    /// Invalid commitment_id (must be non-empty and <= 256 chars)
+    InvalidCommitmentId = 21,
 }
 
 // ============================================================================
@@ -196,6 +201,12 @@ impl CommitmentNFTContract {
         let balanced = String::from_str(e, "balanced");
         let aggressive = String::from_str(e, "aggressive");
         *commitment_type == safe || *commitment_type == balanced || *commitment_type == aggressive
+    }
+
+    /// Validate commitment_id: must be non-empty and not exceed MAX_COMMITMENT_ID_LENGTH
+    fn is_valid_commitment_id(_e: &Env, commitment_id: &String) -> bool {
+        let len = commitment_id.len();
+        len > 0 && len <= MAX_COMMITMENT_ID_LENGTH
     }
 
     /// Set the authorized commitment_core contract address for settlement
@@ -372,6 +383,12 @@ impl CommitmentNFTContract {
                 .instance()
                 .set(&DataKey::ReentrancyGuard, &false);
             return Err(ContractError::InvalidCommitmentType);
+        }
+        if !Self::is_valid_commitment_id(&e, &commitment_id) {
+            e.storage()
+                .instance()
+                .set(&DataKey::ReentrancyGuard, &false);
+            return Err(ContractError::InvalidCommitmentId);
         }
         if initial_amount <= 0 {
             e.storage()
@@ -570,8 +587,13 @@ impl CommitmentNFTContract {
             return Err(ContractError::NotOwner);
         }
 
-        // Note: Active commitments CAN be transferred (secondary market)
-        // The commitment_core contract maintains the commitment state separately
+        // Active (locked) commitment NFTs cannot be transferred (#145)
+        if nft.is_active {
+            e.storage()
+                .instance()
+                .set(&DataKey::ReentrancyGuard, &false);
+            return Err(ContractError::NFTLocked);
+        }
 
         // EFFECTS: Update state
         // Update owner

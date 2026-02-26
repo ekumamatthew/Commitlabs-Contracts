@@ -276,7 +276,7 @@ fn test_frontend_total_commitments_display() {
     assert_eq!(final_count, 5);
 }
 
-/// Test: Frontend NFT transfer flow (secondary market simulation)
+/// Test: Frontend NFT transfer flow (after commitment settled; active NFTs are locked)
 #[test]
 fn test_frontend_nft_transfer_flow() {
     let harness = TestHarness::new();
@@ -284,10 +284,17 @@ fn test_frontend_nft_transfer_flow() {
     let buyer = &harness.accounts.user2;
     let amount = 1_000_000_000_000i128;
 
-    // Seller creates a commitment (gets NFT)
+    // Seller creates a commitment with short duration (gets NFT)
     harness.approve_tokens(seller, &harness.contracts.commitment_core, amount);
-
-    harness
+    let rules = CommitmentRules {
+        duration_days: 1,
+        max_loss_percent: 10,
+        commitment_type: String::from_str(&harness.env, "balanced"),
+        early_exit_penalty: 5,
+        min_fee_threshold: 1000,
+        grace_period_days: 0,
+    };
+    let commitment_id = harness
         .env
         .as_contract(&harness.contracts.commitment_core, || {
             CommitmentCoreContract::create_commitment(
@@ -295,7 +302,7 @@ fn test_frontend_nft_transfer_flow() {
                 seller.clone(),
                 amount,
                 harness.contracts.token.clone(),
-                harness.default_rules(),
+                rules,
             )
         });
 
@@ -306,6 +313,14 @@ fn test_frontend_nft_transfer_flow() {
             CommitmentNFTContract::get_nfts_by_owner(harness.env.clone(), seller.clone())
         });
     let token_id = seller_nfts.get(0).unwrap().token_id;
+
+    // Settle commitment so NFT is unlocked (active NFTs are not transferable)
+    harness.advance_days(2);
+    harness
+        .env
+        .as_contract(&harness.contracts.commitment_core, || {
+            CommitmentCoreContract::settle(harness.env.clone(), commitment_id)
+        });
 
     // Verify initial ownership
     let initial_owner = harness

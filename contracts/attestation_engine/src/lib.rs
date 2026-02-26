@@ -108,6 +108,19 @@ pub struct AttestParams {
     pub is_compliant: bool,
 }
 
+/// Paginated result for get_attestations_page.
+/// Ordering is by timestamp (oldest first, same as insertion order).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationsPage {
+    pub attestations: Vec<Attestation>,
+    /// Next offset to use for the following page; 0 means no more pages.
+    pub next_offset: u32,
+}
+
+/// Maximum number of attestations returned per page (avoids exceeding Soroban limits).
+pub const MAX_PAGE_SIZE: u32 = 100;
+
 // Import Commitment types from commitment_core (define locally for cross-contract calls)
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -791,6 +804,55 @@ impl AttestationEngineContract {
             .persistent()
             .get(&key)
             .unwrap_or_else(|| Vec::new(&e))
+    }
+
+    /// Get a page of attestations for a commitment (ordered by timestamp, oldest first).
+    /// Use this for large lists to stay within Soroban limits.
+    ///
+    /// # Arguments
+    /// * `commitment_id` - The commitment to list attestations for
+    /// * `offset` - Index to start from (0-based)
+    /// * `limit` - Max number of attestations to return (capped at MAX_PAGE_SIZE)
+    ///
+    /// # Returns
+    /// * `attestations` - Slice of attestations for this page
+    /// * `next_offset` - Offset for the next page; 0 if no more pages
+    pub fn get_attestations_page(
+        e: Env,
+        commitment_id: String,
+        offset: u32,
+        limit: u32,
+    ) -> AttestationsPage {
+        let key = DataKey::Attestations(commitment_id.clone());
+        let all: Vec<Attestation> = e
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(&e));
+
+        let cap = limit.min(MAX_PAGE_SIZE);
+        let len = all.len();
+
+        if offset >= len || cap == 0 {
+            return AttestationsPage {
+                attestations: Vec::new(&e),
+                next_offset: 0,
+            };
+        }
+
+        let end = (offset + cap).min(len);
+        let mut page = Vec::new(&e);
+        let mut i = offset;
+        while i < end {
+            page.push_back(all.get(i).unwrap());
+            i += 1;
+        }
+        let next_offset = if end < len { end } else { 0 };
+
+        AttestationsPage {
+            attestations: page,
+            next_offset,
+        }
     }
 
     /// Get attestation count for a commitment

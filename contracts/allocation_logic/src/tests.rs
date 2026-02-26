@@ -1,5 +1,4 @@
 // Comprehensive Security-Focused Tests
-#![cfg(test)]
 use crate::{
     AllocationStrategiesContract, AllocationStrategiesContractClient, RiskLevel, Strategy,
 };
@@ -57,7 +56,7 @@ fn test_register_pool() {
     assert_eq!(pool.risk_level, RiskLevel::Low);
     assert_eq!(pool.apy, 500);
     assert_eq!(pool.max_capacity, 1_000_000_000);
-    assert_eq!(pool.active, true);
+    assert!(pool.active);
     assert_eq!(pool.total_liquidity, 0);
 }
 
@@ -467,4 +466,79 @@ fn test_no_active_pools_fails() {
 
     let user = Address::generate(&env);
     client.allocate(&user, &1, &100_000, &Strategy::Safe);
+}
+
+// ============================================================================
+// BALANCE CHECKING TESTS - Issue #147
+// ============================================================================
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #18)")]
+fn test_allocation_exceeds_commitment_balance_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (admin, _commitment_core, client) = create_contract(&env);
+    setup_test_pools(&env, &client, &admin);
+
+    let user = Address::generate(&env);
+
+    // Test allocation when amount exceeds commitment current_value
+    // commitment_id 100 has balance of 50M, but we try to allocate 100M
+    let commitment_id = 100u64;
+    let allocation_amount = 100_000_000i128;
+
+    // This should fail because allocation amount exceeds commitment balance
+    client.allocate(&user, &commitment_id, &allocation_amount, &Strategy::Safe);
+}
+
+#[test]
+fn test_allocation_equals_commitment_balance_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (admin, _commitment_core, client) = create_contract(&env);
+    setup_test_pools(&env, &client, &admin);
+
+    let user = Address::generate(&env);
+
+    // Test allocation when amount equals commitment current_value
+    // commitment_id 200 has balance of 50M, we allocate exactly 50M
+    let commitment_id = 200u64;
+    let allocation_amount = 50_000_000i128;
+
+    // This should succeed when amount == current_value
+    let summary = client.allocate(&user, &commitment_id, &allocation_amount, &Strategy::Safe);
+
+    assert_eq!(summary.commitment_id, commitment_id);
+    assert_eq!(summary.total_allocated, allocation_amount);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #18)")]
+fn test_multiple_allocations_exceed_total_balance_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (admin, _commitment_core, client) = create_contract(&env);
+    setup_test_pools(&env, &client, &admin);
+
+    let user = Address::generate(&env);
+
+    // First allocation succeeds (commitment_id 300 has 100M balance)
+    let first_commitment_id = 300u64;
+    let first_amount = 30_000_000i128;
+    client.allocate(&user, &first_commitment_id, &first_amount, &Strategy::Safe);
+
+    // Second allocation should fail (commitment_id 400 has 100M balance, but we try 110M)
+    let second_commitment_id = 400u64;
+    let second_amount = 110_000_000i128;
+
+    // This should fail because allocation amount exceeds commitment balance
+    client.allocate(
+        &user,
+        &second_commitment_id,
+        &second_amount,
+        &Strategy::Safe,
+    );
 }

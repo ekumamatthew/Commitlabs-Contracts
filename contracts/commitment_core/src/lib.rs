@@ -124,6 +124,13 @@ pub enum DataKey {
     ReentrancyGuard,
     TotalValueLocked,
     AuthorizedUpdaters,
+    Commitment(String),        // commitment_id -> Commitment
+    OwnerCommitments(Address), // owner -> Vec<commitment_id>
+    TotalCommitments,          // counter
+    ReentrancyGuard,           // reentrancy protection flag
+    TotalValueLocked,          // aggregate value locked across active commitments
+    /// All commitment IDs for time-range queries (analytics). Appended on create.
+    AllCommitmentIds,
 }
 
 // --- Internal Helpers ---
@@ -274,6 +281,26 @@ impl CommitmentCoreContract {
         e.storage().instance().set(&DataKey::NftContract, &nft_contract);
         e.storage().instance().set(&DataKey::TotalCommitments, &0u64);
         e.storage().instance().set(&DataKey::TotalValueLocked, &0i128);
+        e.storage()
+            .instance()
+            .set(&DataKey::NftContract, &nft_contract);
+
+        // Initialize total commitments counter
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalCommitments, &0u64);
+
+        // Initialize empty list for time-range queries
+        e.storage()
+            .instance()
+            .set(&DataKey::AllCommitmentIds, &Vec::<String>::new(&e));
+
+        // Initialize total value locked counter
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalValueLocked, &0i128);
+
+        // Initialize paused state (default: not paused)
         e.storage().instance().set(&Pausable::PAUSED_KEY, &false);
     }
 
@@ -316,6 +343,53 @@ impl CommitmentCoreContract {
         
         let tvl = e.storage().instance().get::<_, i128>(&DataKey::TotalValueLocked).unwrap_or(0);
         e.storage().instance().set(&DataKey::TotalValueLocked, &(tvl + amount));
+        e.storage().instance().set(
+            &DataKey::OwnerCommitments(owner.clone()),
+            &owner_commitments,
+        );
+
+        // OPTIMIZATION: Increment both counters using already-read values
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalCommitments, &(current_total + 1));
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalValueLocked, &(current_tvl + amount));
+
+        // Append to AllCommitmentIds for time-range queries (#143)
+        let mut all_ids = e
+            .storage()
+            .instance()
+            .get::<_, Vec<String>>(&DataKey::AllCommitmentIds)
+            .unwrap_or(Vec::new(&e));
+        all_ids.push_back(commitment_id.clone());
+        e.storage()
+            .instance()
+            .set(&DataKey::AllCommitmentIds, &all_ids);
+
+        // INTERACTIONS: External calls (token transfer, NFT mint)
+        // Transfer assets from owner to contract
+        let contract_address = e.current_contract_address();
+        transfer_assets(&e, &owner, &contract_address, &asset_address, amount);
+
+        // Mint NFT
+        let nft_token_id = call_nft_mint(
+            &e,
+            &nft_contract,
+            &owner,
+            &commitment_id,
+            rules.duration_days,
+            rules.max_loss_percent,
+            &rules.commitment_type,
+            amount,
+            &asset_address,
+            rules.early_exit_penalty,
+        );
+
+        // Update commitment with NFT token ID
+        let mut updated_commitment = commitment;
+        updated_commitment.nft_token_id = nft_token_id;
+        set_commitment(&e, &updated_commitment);
 
         transfer_assets(&e, &owner, &e.current_contract_address(), &asset_address, amount);
         let nft_token_id = call_nft_mint(&e, &nft_contract, &owner, &commitment_id, rules.duration_days, rules.max_loss_percent, &rules.commitment_type, amount, &asset_address, rules.early_exit_penalty);
@@ -333,6 +407,82 @@ impl CommitmentCoreContract {
         let admin = e.storage().instance().get::<_, Address>(&DataKey::Admin).unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "upd"));
         let alloc = e.storage().instance().get::<_, Address>(&DataKey::AllocationContract);
         let updaters = e.storage().instance().get::<_, Vec<Address>>(&DataKey::AuthorizedUpdaters).unwrap_or(Vec::new(&e));
+    /// Get commitment details
+    pub fn get_commitment(e: Env, commitment_id: String) -> Commitment {
+        read_commitment(&e, &commitment_id)
+            .unwrap_or_else(|| fail(&e, CommitmentError::CommitmentNotFound, "get_commitment"))
+    }
+
+    /// List all commitment IDs owned by the given address.
+    ///
+    /// This is a convenience wrapper around `get_owner_commitments` with a
+    /// name optimized for off-chain indexers and UIs.
+    pub fn list_commitments_by_owner(e: Env, owner: Address) -> Vec<String> {
+        Self::get_owner_commitments(e, owner)
+    }
+
+    /// Get all commitments for an owner
+    pub fn get_owner_commitments(e: Env, owner: Address) -> Vec<String> {
+        e.storage()
+            .instance()
+            .get::<_, Vec<String>>(&DataKey::OwnerCommitments(owner))
+            .unwrap_or(Vec::new(&e))
+    }
+
+    /// Get total number of commitments
+    pub fn get_total_commitments(e: Env) -> u64 {
+        e.storage()
+            .instance()
+            .get::<_, u64>(&DataKey::TotalCommitments)
+            .unwrap_or(0)
+    }
+
+    /// Get total value locked across all active commitments.
+    pub fn get_total_value_locked(e: Env) -> i128 {
+        e.storage()
+            .instance()
+            .get::<_, i128>(&DataKey::TotalValueLocked)
+            .unwrap_or(0)
+    }
+
+    /// Get commitment IDs created between two timestamps (inclusive).
+    /// For analytics/dashboards. Gas cost is O(n) in total commitments; consider pagination for large n.
+    pub fn get_commitments_created_between(
+        e: Env,
+        from_ts: u64,
+        to_ts: u64,
+    ) -> Vec<String> {
+        let all_ids = e
+            .storage()
+            .instance()
+            .get::<_, Vec<String>>(&DataKey::AllCommitmentIds)
+            .unwrap_or(Vec::new(&e));
+        let mut out = Vec::new(&e);
+        for id in all_ids.iter() {
+            if let Some(c) = read_commitment(&e, &id) {
+                if c.created_at >= from_ts && c.created_at <= to_ts {
+                    out.push_back(id.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// Get admin address
+    pub fn get_admin(e: Env) -> Address {
+        e.storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Admin)
+            .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "get_admin"))
+    }
+
+    /// Get NFT contract address
+    pub fn get_nft_contract(e: Env) -> Address {
+        e.storage()
+            .instance()
+            .get::<_, Address>(&DataKey::NftContract)
+            .unwrap_or_else(|| fail(&e, CommitmentError::NotInitialized, "get_nft_contract"))
+    }
 
         if caller != admin && !updaters.contains(&caller) && (alloc.is_none() || caller != alloc.unwrap()) {
             fail(&e, CommitmentError::Unauthorized, "upd");
