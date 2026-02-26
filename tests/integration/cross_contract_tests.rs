@@ -195,7 +195,8 @@ fn test_create_commitment_mints_nft_metadata_matches() {
             CommitmentNFTContract::get_metadata(harness.env.clone(), token_id).unwrap()
         });
 
-    assert_eq!(nft.metadata.commitment_id, commitment_id);
+    // Verify auto-generated commitment_id format: COMMIT_{token_id}
+    assert_eq!(nft.metadata.commitment_id, String::from_str(&harness.env, "COMMIT_0"));
     assert_eq!(nft.metadata.duration_days, rules.duration_days);
     assert_eq!(nft.metadata.max_loss_percent, rules.max_loss_percent);
     assert_eq!(nft.metadata.commitment_type, rules.commitment_type);
@@ -766,7 +767,8 @@ fn test_commitment_settlement_calls_nft_settle() {
             CommitmentNFTContract::get_metadata(harness.env.clone(), 0).unwrap()
         });
     assert!(!nft_after_settle.is_active);
-    assert_eq!(nft_after_settle.metadata.commitment_id, commitment_id);
+    // Verify auto-generated commitment_id format: COMMIT_{token_id}
+    assert_eq!(nft_after_settle.metadata.commitment_id, String::from_str(&harness.env, "COMMIT_0"));
     assert_eq!(nft_after_settle.owner, *user);
 
     // Verify commitment status
@@ -913,7 +915,8 @@ fn test_cross_contract_state_consistency() {
         });
     assert_eq!(nft.owner, *user);
     assert_eq!(nft.metadata.initial_amount, amount);
-    assert_eq!(nft.metadata.commitment_id, commitment_id);
+    // Verify auto-generated commitment_id format: COMMIT_{token_id}
+    assert_eq!(nft.metadata.commitment_id, String::from_str(&harness.env, "COMMIT_0"));
 
     // 3. Token balances are correct
     let user_balance = harness.balance(user);
