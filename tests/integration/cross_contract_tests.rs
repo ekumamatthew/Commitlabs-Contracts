@@ -14,7 +14,7 @@ use soroban_sdk::{
 
 use commitment_core::{CommitmentCoreContract, CommitmentRules};
 use commitment_nft::{CommitmentNFTContract, ContractError as NftContractError};
-use attestation_engine::{AttestationEngineContract, AttestationError};
+use attestation_engine::{AttestationEngineContract, AttestationError, AttestationsPage};
 use allocation_logic::{AllocationStrategiesContract, RiskLevel, Strategy};
 
 /// Verify compliance integration between commitment_core and attestation_engine.
